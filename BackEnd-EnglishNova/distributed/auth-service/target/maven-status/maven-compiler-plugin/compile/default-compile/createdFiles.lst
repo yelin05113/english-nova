@@ -1,7 +1,0 @@
-com\heima\englishnova\auth\service\AuthService$UserRow.class
-com\heima\englishnova\auth\config\AuthServiceConfig$JwtProperties.class
-com\heima\englishnova\auth\config\AuthServiceConfig.class
-com\heima\englishnova\auth\service\AuthService.class
-com\heima\englishnova\auth\service\JwtTokenService.class
-com\heima\englishnova\auth\AuthServiceApplication.class
-com\heima\englishnova\auth\controller\AuthController.class

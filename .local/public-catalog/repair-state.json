@@ -1,9 +1,0 @@
-﻿{
-    "sourceKey":  "file:D:\\Projects\\english-nova\\.local\\public-catalog\\repair-words.txt",
-    "wordCount":  26,
-    "batchSize":  100,
-    "nextIndex":  26,
-    "updatedAt":  "2026-04-14T09:56:36",
-    "completed":  true,
-    "reportPath":  "D:\\Projects\\english-nova\\.local\\public-catalog\\repair-report.json"
-}
