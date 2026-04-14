@@ -1,0 +1,9 @@
+﻿{
+    "sourceKey":  "url:https://raw.githubusercontent.com/first20hours/google-10000-english/master/20k.txt",
+    "wordCount":  20000,
+    "batchSize":  100,
+    "nextIndex":  20000,
+    "updatedAt":  "2026-04-14T09:46:58",
+    "completed":  true,
+    "reportPath":  "D:\\Projects\\english-nova\\.local\\public-catalog\\import-report.json"
+}

@@ -13,10 +13,7 @@ export async function apiFetch<T>(
   const payload = (await response.json()) as ApiResponse<T>
 
   if (!response.ok || !payload.success) {
-    if (
-      response.status === 401 ||
-      (options?.requireAuth && /登录|令牌/.test(payload.message || ''))
-    ) {
+    if (response.status === 401 || (options?.requireAuth && /登录|令牌/.test(payload.message || ''))) {
       options?.onUnauthorized?.()
     }
     throw new Error(payload.message || '请求失败')

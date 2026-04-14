@@ -10,11 +10,12 @@ import type {
   QuizAnswerResult,
   QuizMode,
   QuizSessionState,
-
+  SearchSuggestion,
   StudyAgenda,
   StudyProgress,
   SystemOverview,
   ViewKey,
+  WordDetail,
   VocabularyEntry,
   WordSearchResponse,
   WordbookProgress,
@@ -22,15 +23,12 @@ import type {
 } from '../types'
 
 export function useAppState() {
-  /* ---- auth ---- */
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) ?? '')
   const [user, setUser] = useState<AuthUser | null>(null)
 
-  /* ---- view routing ---- */
   const [view, setView] = useState<ViewKey>('auth')
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login')
 
-  /* ---- backend data ---- */
   const [overview, setOverview] = useState<SystemOverview | null>(null)
   const [agenda, setAgenda] = useState<StudyAgenda | null>(null)
   const [progress, setProgress] = useState<StudyProgress | null>(null)
@@ -43,15 +41,14 @@ export function useAppState() {
   const [searchQuery, setSearchQuery] = useState('')
   const deferredSearchQuery = useDeferredValue(searchQuery)
   const [searchResult, setSearchResult] = useState<WordSearchResponse>({ publicHits: [], myHits: [] })
+  const [searchSuggestions, setSearchSuggestions] = useState<SearchSuggestion[]>([])
   const [quizMode, setQuizMode] = useState<QuizMode>('MIXED')
   const [quizState, setQuizState] = useState<QuizSessionState | null>(null)
 
-  /* ---- feedback ---- */
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  /* ---- form fields ---- */
   const [account, setAccount] = useState('demo')
   const [loginPassword, setLoginPassword] = useState('123456')
   const [registerUsername, setRegisterUsername] = useState('')
@@ -61,7 +58,6 @@ export function useAppState() {
   const [selectedPlatform, setSelectedPlatform] = useState<ImportPlatform>(DEFAULT_IMPORT_PLATFORM)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  /* ---- helpers ---- */
   function api<T>(path: string, init?: RequestInit, requireAuth = false, authToken = token) {
     return apiFetch<T>(path, init, { requireAuth, token: authToken, onUnauthorized: clearAuth })
   }
@@ -80,9 +76,10 @@ export function useAppState() {
     setWordbookProgress(null)
     setSelectedWordbookId(null)
     setQuizState(null)
+    setSearchResult({ publicHits: [], myHits: [] })
+    setSearchSuggestions([])
   }
 
-  /* ---- data loading ---- */
   async function loadPrivateData(nextView?: ViewKey, authToken = token) {
     if (!authToken) return
     setLoading(true)
@@ -107,9 +104,7 @@ export function useAppState() {
         presetData.find((preset) => preset.platform === 'ANKI')?.platform ?? DEFAULT_IMPORT_PLATFORM,
       )
       setSelectedWordbookId((current) =>
-        current && wordbookData.some((item) => item.id === current)
-          ? current
-          : (wordbookData[0]?.id ?? null),
+        current && wordbookData.some((item) => item.id === current) ? current : (wordbookData[0]?.id ?? null),
       )
       if (nextView) setView(nextView)
       else if (!user) setView(wordbookData.length ? 'library' : 'imports')
@@ -118,7 +113,6 @@ export function useAppState() {
     }
   }
 
-  /* ---- effects ---- */
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -138,35 +132,79 @@ export function useAppState() {
 
   useEffect(() => {
     if (!token || !selectedWordbookId) return
+    let cancelled = false
     ;(async () => {
       try {
         const [entryData, progressData] = await Promise.all([
           api<VocabularyEntry[]>(`/api/wordbooks/${selectedWordbookId}/entries`, undefined, true),
           api<WordbookProgress>(`/api/wordbooks/${selectedWordbookId}/progress`, undefined, true),
         ])
-        setEntries(entryData)
-        setWordbookProgress(progressData)
+        if (!cancelled) {
+          setEntries(entryData)
+          setWordbookProgress(progressData)
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : '加载词书失败')
+        if (!cancelled) setError(err instanceof Error ? err.message : '加载词书失败')
       }
     })()
+    return () => {
+      cancelled = true
+    }
   }, [token, selectedWordbookId])
 
   useEffect(() => {
     if (!token) return
+    let cancelled = false
+    const query = deferredSearchQuery.trim()
+
+    if (!query) {
+      setSearchResult({ publicHits: [], myHits: [] })
+      return
+    }
+
     ;(async () => {
       try {
-        const result = await api<WordSearchResponse>(
-          `/api/search/words?q=${encodeURIComponent(deferredSearchQuery.trim())}`,
-        )
-        setSearchResult(result)
+        const result = await api<WordSearchResponse>(`/api/search/words?q=${encodeURIComponent(query)}`)
+        if (!cancelled) setSearchResult(result)
       } catch (err) {
-        setError(err instanceof Error ? err.message : '搜索失败')
+        if (!cancelled) setError(err instanceof Error ? err.message : '搜索失败')
       }
     })()
+
+    return () => {
+      cancelled = true
+    }
   }, [token, deferredSearchQuery])
 
-  /* ---- actions ---- */
+  useEffect(() => {
+    if (!token) return
+    const query = searchQuery.trim()
+    if (!query) {
+      setSearchSuggestions([])
+      return
+    }
+
+    let cancelled = false
+    const timer = window.setTimeout(async () => {
+      try {
+        const suggestions = await api<SearchSuggestion[]>(
+          `/api/search/suggestions?q=${encodeURIComponent(query)}`,
+        )
+        if (!cancelled) setSearchSuggestions(suggestions)
+      } catch (err) {
+        if (!cancelled) {
+          setSearchSuggestions([])
+          setError(err instanceof Error ? err.message : '获取搜索补全失败')
+        }
+      }
+    }, 160)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [token, searchQuery])
+
   async function handleLogin() {
     setError(null)
     try {
@@ -205,7 +243,10 @@ export function useAppState() {
   }
 
   async function handleImport() {
-    if (!selectedFile) return setError('请先选择要导入的文件')
+    if (!selectedFile) {
+      setError('请先选择要导入的文件')
+      return
+    }
     setError(null)
     setMessage(null)
     try {
@@ -225,7 +266,10 @@ export function useAppState() {
 
   async function handleCreateQuiz(wordbookId?: number) {
     const targetWordbookId = wordbookId ?? selectedWordbookId
-    if (!targetWordbookId) return setError('请先选择词书')
+    if (!targetWordbookId) {
+      setError('请先选择词书')
+      return
+    }
     setError(null)
     setMessage(null)
     try {
@@ -241,8 +285,8 @@ export function useAppState() {
     }
   }
 
-  async function handleAnswer(option: string) {
-    if (!quizState?.currentQuestion) return
+  async function handleAnswer(option: string): Promise<QuizAnswerResult | null> {
+    if (!quizState?.currentQuestion) return null
     setError(null)
     try {
       const result = await api<QuizAnswerResult>(
@@ -256,50 +300,84 @@ export function useAppState() {
         },
         true,
       )
-      setQuizState({ session: result.session, currentQuestion: result.nextQuestion })
-      setMessage(
-        result.correct
-          ? '回答正确，已斩掉这个单词'
-          : `回答错误，正确答案是：${result.correctOption}`,
-      )
-      await loadPrivateData()
+      return result
     } catch (err) {
       setError(err instanceof Error ? err.message : '提交答案失败')
+      return null
     }
   }
 
-  /* ---- derived ---- */
+  function advanceQuiz(result: QuizAnswerResult) {
+    setQuizState({ session: result.session, currentQuestion: result.nextQuestion })
+    void loadPrivateData()
+  }
+
+  async function getWordDetail(entryId: number) {
+    return api<WordDetail>(`/api/search/words/${entryId}`)
+  }
+
+  function pickSearchSuggestion(value: string) {
+    setSearchSuggestions([])
+    setSearchQuery(value)
+  }
+
   const preset = presets.find((item) => item.platform === selectedPlatform)
   const selectedWordbook = wordbooks.find((item) => item.id === selectedWordbookId) ?? null
-
   const switchView = (nextView: ViewKey) => startTransition(() => setView(nextView))
 
   return {
-    /* auth */
-    token, user, clearAuth,
-    /* view routing */
-    view, switchView, authTab, setAuthTab,
-    /* data */
-    overview, agenda, progress, presets, tasks,
-    wordbooks, entries, wordbookProgress,
-    selectedWordbookId, setSelectedWordbookId,
-    searchQuery, setSearchQuery, searchResult,
-    quizMode, setQuizMode, quizState,
-    /* feedback */
-    message, error, loading,
-    /* form */
-    account, setAccount,
-    loginPassword, setLoginPassword,
-    registerUsername, setRegisterUsername,
-    registerEmail, setRegisterEmail,
-    registerPassword, setRegisterPassword,
-    sourceName, setSourceName,
-    selectedPlatform, setSelectedPlatform,
-    selectedFile, setSelectedFile,
-    /* derived */
-    preset, selectedWordbook,
-    /* actions */
-    handleLogin, handleRegister, handleImport,
-    handleCreateQuiz, handleAnswer,
+    token,
+    user,
+    clearAuth,
+    view,
+    switchView,
+    authTab,
+    setAuthTab,
+    overview,
+    agenda,
+    progress,
+    presets,
+    tasks,
+    wordbooks,
+    entries,
+    wordbookProgress,
+    selectedWordbookId,
+    setSelectedWordbookId,
+    searchQuery,
+    setSearchQuery,
+    searchResult,
+    searchSuggestions,
+    pickSearchSuggestion,
+    quizMode,
+    setQuizMode,
+    quizState,
+    message,
+    error,
+    loading,
+    account,
+    setAccount,
+    loginPassword,
+    setLoginPassword,
+    registerUsername,
+    setRegisterUsername,
+    registerEmail,
+    setRegisterEmail,
+    registerPassword,
+    setRegisterPassword,
+    sourceName,
+    setSourceName,
+    selectedPlatform,
+    setSelectedPlatform,
+    selectedFile,
+    setSelectedFile,
+    preset,
+    selectedWordbook,
+    handleLogin,
+    handleRegister,
+    handleImport,
+    handleCreateQuiz,
+    handleAnswer,
+    advanceQuiz,
+    getWordDetail,
   }
 }

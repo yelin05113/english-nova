@@ -8,6 +8,9 @@ public record SearchHitDto(
         String source,
         String exampleSentence,
         String category,
-        String visibility
+        String visibility,
+        String importSource,
+        int matchPercent,
+        String matchType
 ) {
 }

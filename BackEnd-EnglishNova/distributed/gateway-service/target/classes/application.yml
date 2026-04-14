@@ -1,0 +1,65 @@
+spring:
+  application:
+    name: gateway-service
+  config:
+    import: optional:nacos:${spring.application.name}.yaml
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:nacos}
+      discovery:
+        namespace: ${NACOS_NAMESPACE:public}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE:public}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: auth-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/api/auth/**
+            - id: system-service
+              uri: lb://system-service
+              predicates:
+                - Path=/api/system/**
+            - id: study-service
+              uri: lb://study-service
+              predicates:
+                - Path=/api/study/**
+            - id: search-service
+              uri: lb://search-service
+              predicates:
+                - Path=/api/search/**
+            - id: import-service
+              uri: lb://import-service
+              predicates:
+                - Path=/api/imports/**
+            - id: quiz-service-wordbooks
+              uri: lb://quiz-service
+              predicates:
+                - Path=/api/wordbooks/**
+            - id: quiz-service
+              uri: lb://quiz-service
+              predicates:
+                - Path=/api/quiz/**
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+english-nova:
+  jwt:
+    secret: ${JWT_SECRET:english-nova-local-jwt-secret-must-be-32-char}

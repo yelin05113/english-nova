@@ -1,0 +1,50 @@
+﻿{
+    "sourceKey":  "file:D:\\Projects\\english-nova\\.local\\public-catalog\\repair-words.txt",
+    "wordCount":  26,
+    "batchSize":  100,
+    "startedAt":  "2026-04-14T09:56:26",
+    "updatedAt":  "2026-04-14T09:56:36",
+    "completedAt":  "2026-04-14T09:56:36",
+    "completed":  true,
+    "nextIndex":  26,
+    "totals":  {
+                   "requested":  26,
+                   "imported":  0,
+                   "updated":  17,
+                   "skipped":  0,
+                   "failed":  9
+               },
+    "batches":  [
+                    {
+                        "startedIndex":  0,
+                        "endedIndex":  26,
+                        "requested":  26,
+                        "imported":  0,
+                        "updated":  17,
+                        "skipped":  0,
+                        "failed":  9,
+                        "failedWords":  [
+                                            "anchor",
+                                            "canopy",
+                                            "career",
+                                            "clarify",
+                                            "define",
+                                            "impact",
+                                            "meadow",
+                                            "ping",
+                                            "retain"
+                                        ]
+                    }
+                ],
+    "failedWords":  [
+                        "anchor",
+                        "canopy",
+                        "career",
+                        "clarify",
+                        "define",
+                        "impact",
+                        "meadow",
+                        "ping",
+                        "retain"
+                    ]
+}

@@ -18,11 +18,7 @@ function App() {
     <div className="app-shell">
       <Topbar user={state.user} onLogout={state.clearAuth} />
 
-      <HeroPanel
-        wordbooks={state.wordbooks}
-        agenda={state.agenda}
-        searchResult={state.searchResult}
-      />
+      <HeroPanel wordbooks={state.wordbooks} agenda={state.agenda} searchResult={state.searchResult} />
 
       {state.error && <p className="notice error">{state.error}</p>}
       {state.message && <p className="notice success">{state.message}</p>}
@@ -88,6 +84,7 @@ function App() {
                 quizState={state.quizState}
                 onCreateQuiz={() => void state.handleCreateQuiz()}
                 onAnswer={state.handleAnswer}
+                onAdvance={state.advanceQuiz}
               />
             )}
 
@@ -96,12 +93,13 @@ function App() {
                 searchQuery={state.searchQuery}
                 onSearchQueryChange={state.setSearchQuery}
                 searchResult={state.searchResult}
+                suggestions={state.searchSuggestions}
+                onPickSuggestion={state.pickSearchSuggestion}
+                onFetchWordDetail={state.getWordDetail}
               />
             )}
 
-            {state.view === 'progress' && (
-              <ProgressView progress={state.progress} agenda={state.agenda} />
-            )}
+            {state.view === 'progress' && <ProgressView progress={state.progress} agenda={state.agenda} />}
           </article>
         </section>
       )}

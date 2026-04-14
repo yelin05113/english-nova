@@ -1,0 +1,7 @@
+[31mfailed to load config from D:\Projects\english-nova\FrontEnd-EnglishNova\vite.config.ts[39m
+[31merror when starting dev server:
+ReferenceError: require is not defined
+    at eval (D:/Projects/english-nova/FrontEnd-EnglishNova/node_modules/picomatch/index.js:5:14)
+    at ESModulesEvaluator.runInlinedModule (file:///D:/Projects/english-nova/FrontEnd-EnglishNova/node_modules/vite/dist/node/module-runner.js:992:161)
+    at ModuleRunner.directRequest (file:///D:/Projects/english-nova/FrontEnd-EnglishNova/node_modules/vite/dist/node/module-runner.js:1247:80)
+    at async ModuleRunner.cachedRequest (file:///D:/Projects/english-nova/FrontEnd-EnglishNova/node_modules/vite/dist/node/module-runner.js:1154:73)[39m

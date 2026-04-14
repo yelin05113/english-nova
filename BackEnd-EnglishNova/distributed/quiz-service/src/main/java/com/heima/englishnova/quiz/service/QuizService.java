@@ -16,6 +16,8 @@ import com.heima.englishnova.shared.enums.QuizMode;
 import com.heima.englishnova.shared.enums.WordImportPlatform;
 import com.heima.englishnova.shared.exception.ForbiddenException;
 import com.heima.englishnova.shared.exception.NotFoundException;
+import com.heima.englishnova.shared.text.TextRepairUtils;
+import com.heima.englishnova.shared.text.UserFacingTextNormalizer;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,11 +83,11 @@ public class QuizService {
                 """,
                 (resultSet, rowNum) -> new VocabularyEntryDto(
                         resultSet.getLong("id"),
-                        resultSet.getString("word"),
-                        resultSet.getString("phonetic"),
-                        resultSet.getString("meaning_cn"),
-                        resultSet.getString("example_sentence"),
-                        resultSet.getString("category"),
+                        TextRepairUtils.repair(resultSet.getString("word")),
+                        normalizePhonetic(resultSet.getString("phonetic")),
+                        UserFacingTextNormalizer.normalizeMeaningText(resultSet.getString("meaning_cn")),
+                        UserFacingTextNormalizer.normalizeDisplayText(resultSet.getString("example_sentence")),
+                        UserFacingTextNormalizer.normalizeMeaningText(resultSet.getString("category")),
                         resultSet.getInt("difficulty"),
                         resultSet.getString("visibility")
                 ),
@@ -200,16 +202,6 @@ public class QuizService {
         }
 
         boolean correct = attempt.correctOption().equalsIgnoreCase(request.selectedOption().trim());
-        jdbcTemplate.update(
-                """
-                UPDATE quiz_attempts
-                SET selected_option = ?, is_correct = ?, answered_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-                """,
-                request.selectedOption().trim(),
-                correct,
-                attempt.id()
-        );
 
         jdbcTemplate.update(
                 """
@@ -227,24 +219,36 @@ public class QuizService {
                 attempt.vocabularyEntryId()
         );
 
-        jdbcTemplate.update(
-                """
-                UPDATE quiz_sessions
-                SET answered_questions = answered_questions + 1,
-                    correct_answers = correct_answers + ?,
-                    status = CASE
-                        WHEN answered_questions + 1 >= total_questions THEN 'COMPLETED'
-                        ELSE status
-                    END,
-                    finished_at = CASE
-                        WHEN answered_questions + 1 >= total_questions THEN CURRENT_TIMESTAMP
-                        ELSE finished_at
-                    END
-                WHERE id = ?
-                """,
-                correct ? 1 : 0,
-                sessionId
-        );
+        if (correct) {
+            jdbcTemplate.update(
+                    """
+                    UPDATE quiz_attempts
+                    SET selected_option = ?, is_correct = ?, answered_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    request.selectedOption().trim(),
+                    true,
+                    attempt.id()
+            );
+
+            jdbcTemplate.update(
+                    """
+                    UPDATE quiz_sessions
+                    SET answered_questions = answered_questions + 1,
+                        correct_answers = correct_answers + 1,
+                        status = CASE
+                            WHEN answered_questions + 1 >= total_questions THEN 'COMPLETED'
+                            ELSE status
+                        END,
+                        finished_at = CASE
+                            WHEN answered_questions + 1 >= total_questions THEN CURRENT_TIMESTAMP
+                            ELSE finished_at
+                        END
+                    WHERE id = ?
+                    """,
+                    sessionId
+            );
+        }
 
         SessionRow refreshedSession = requireSession(user.id(), sessionId);
         QuizQuestionDto nextQuestion = loadNextQuestion(sessionId, refreshedSession.totalQuestions());
@@ -267,8 +271,12 @@ public class QuizService {
     }
 
     private AttemptPayload buildAttemptPayload(long userId, EntryRow entry, PromptType promptType) {
-        String correctOption = promptType == PromptType.CN_TO_EN ? entry.word() : entry.meaningCn();
-        String promptText = promptType == PromptType.CN_TO_EN ? entry.meaningCn() : entry.word();
+        String correctOption = promptType == PromptType.CN_TO_EN
+                ? TextRepairUtils.repair(entry.word())
+                : UserFacingTextNormalizer.normalizeMeaningText(entry.meaningCn());
+        String promptText = promptType == PromptType.CN_TO_EN
+                ? UserFacingTextNormalizer.normalizeMeaningText(entry.meaningCn())
+                : TextRepairUtils.repair(entry.word());
         List<String> distractors = loadDistractors(userId, entry.id(), promptType, correctOption);
         List<String> options = new ArrayList<>(distractors);
         options.add(correctOption);
@@ -281,24 +289,24 @@ public class QuizService {
         String field = promptType == PromptType.CN_TO_EN ? "word" : "meaning_cn";
 
         jdbcTemplate.query(
-                "SELECT " + field + " AS candidate FROM vocabulary_entries WHERE visibility = 'PUBLIC' AND id <> ? ORDER BY RAND() LIMIT 12",
+                "SELECT " + field + " AS candidate FROM vocabulary_entries WHERE user_id = ? AND id <> ? ORDER BY RAND() LIMIT 12",
                 resultSet -> {
                     while (resultSet.next() && values.size() < 3) {
                         addCandidate(values, resultSet.getString("candidate"), correctOption);
                     }
                 },
+                userId,
                 entryId
         );
 
         if (values.size() < 3) {
             jdbcTemplate.query(
-                    "SELECT " + field + " AS candidate FROM vocabulary_entries WHERE user_id = ? AND id <> ? ORDER BY RAND() LIMIT 12",
+                    "SELECT " + field + " AS candidate FROM vocabulary_entries WHERE visibility = 'PUBLIC' AND id <> ? ORDER BY RAND() LIMIT 12",
                     resultSet -> {
                         while (resultSet.next() && values.size() < 3) {
                             addCandidate(values, resultSet.getString("candidate"), correctOption);
                         }
                     },
-                    userId,
                     entryId
             );
         }
@@ -313,10 +321,25 @@ public class QuizService {
         if (candidate == null || candidate.isBlank()) {
             return;
         }
-        if (candidate.trim().equalsIgnoreCase(correctOption.trim())) {
+        String normalized = promptLooksChinese(correctOption)
+                ? UserFacingTextNormalizer.normalizeMeaningText(candidate).trim()
+                : TextRepairUtils.repair(candidate).trim();
+        if (normalized.equalsIgnoreCase(correctOption.trim())) {
             return;
         }
-        values.add(candidate.trim());
+        values.add(normalized);
+    }
+
+    private boolean promptLooksChinese(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        for (int index = 0; index < value.length(); index++) {
+            if (Character.UnicodeScript.of(value.charAt(index)) == Character.UnicodeScript.HAN) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private SessionRow requireSession(long userId, String sessionId) {
@@ -416,8 +439,8 @@ public class QuizService {
                 """,
                 (resultSet, rowNum) -> new EntryRow(
                         resultSet.getLong("id"),
-                        resultSet.getString("word"),
-                        resultSet.getString("meaning_cn")
+                        TextRepairUtils.repair(resultSet.getString("word")),
+                        UserFacingTextNormalizer.normalizeMeaningText(resultSet.getString("meaning_cn"))
                 ),
                 userId,
                 wordbookId
@@ -446,6 +469,13 @@ public class QuizService {
                 row.correctAnswers(),
                 row.status()
         );
+    }
+
+    private String normalizePhonetic(String phonetic) {
+        if (phonetic == null) {
+            return "";
+        }
+        return phonetic.trim();
     }
 
     private record EntryRow(

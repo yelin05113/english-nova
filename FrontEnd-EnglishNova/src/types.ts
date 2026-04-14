@@ -3,6 +3,8 @@ export type ViewKey = 'auth' | 'library' | 'imports' | 'quiz' | 'search' | 'prog
 export type ImportPlatform = 'BAICIZHAN' | 'BUBEIDANCI' | 'SHANBAY' | 'ANKI'
 export type QuizMode = 'CN_TO_EN' | 'EN_TO_CN' | 'MIXED'
 export type PromptType = 'CN_TO_EN' | 'EN_TO_CN'
+export type SearchMatchType = 'EXACT' | 'PREFIX' | 'CONTAINS' | 'TEXT'
+export type SearchSuggestionMatchType = Exclude<SearchMatchType, 'TEXT'>
 
 export interface ApiResponse<T> {
   success: boolean
@@ -84,11 +86,22 @@ export interface SearchHit {
   exampleSentence: string
   category: string
   visibility: string
+  importSource: string
+  matchPercent: number
+  matchType: SearchMatchType
 }
 
 export interface WordSearchResponse {
   publicHits: SearchHit[]
   myHits: SearchHit[]
+}
+
+export interface SearchSuggestion {
+  entryId: number
+  word: string
+  visibility: string
+  matchPercent: number
+  matchType: SearchSuggestionMatchType
 }
 
 export interface WordbookSummary {
@@ -110,6 +123,24 @@ export interface VocabularyEntry {
   category: string
   difficulty: number
   visibility: string
+}
+
+export interface WordDetail {
+  entryId: number
+  ownerUserId: number | null
+  wordbookId: number
+  wordbookName: string
+  word: string
+  phonetic: string
+  meaningCn: string
+  exampleSentence: string
+  category: string
+  difficulty: number
+  visibility: string
+  source: string
+  sourceName: string
+  importSource: string
+  audioUrl: string
 }
 
 export interface WordbookProgress {

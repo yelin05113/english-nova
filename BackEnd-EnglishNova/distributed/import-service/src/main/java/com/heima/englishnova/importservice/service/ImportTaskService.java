@@ -13,6 +13,8 @@ import com.heima.englishnova.shared.enums.VocabularyVisibility;
 import com.heima.englishnova.shared.events.WordbookImportedEvent;
 import com.heima.englishnova.shared.exception.NotFoundException;
 import com.heima.englishnova.shared.exception.UnauthorizedException;
+import com.heima.englishnova.shared.text.TextRepairUtils;
+import com.heima.englishnova.shared.text.UserFacingTextNormalizer;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -31,6 +33,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -72,7 +75,7 @@ public class ImportTaskService {
                         resultSet.getString("task_id"),
                         getLong(resultSet, "wordbook_id"),
                         com.heima.englishnova.shared.enums.WordImportPlatform.valueOf(resultSet.getString("platform")),
-                        resultSet.getString("source_name"),
+                        UserFacingTextNormalizer.normalizeDisplayText(resultSet.getString("source_name")),
                         resultSet.getInt("estimated_cards"),
                         resultSet.getInt("imported_cards"),
                         resultSet.getString("status"),
@@ -86,7 +89,7 @@ public class ImportTaskService {
 
     @Transactional
     public ImportTaskDto createTask(CurrentUser user, ImportTaskRequest request) {
-        WordImportAdapter adapter = requireAdapter(request.platform());
+        requireAdapter(request.platform());
         ImportTaskDto task = persistTask(
                 user.id(),
                 null,
@@ -129,7 +132,7 @@ public class ImportTaskService {
             }
 
             long wordbookId = createWordbook(user.id(), resolvedSourceName, platform, resolvedSourceName, records.size());
-            batchInsertVocabulary(user.id(), wordbookId, records);
+            batchInsertVocabulary(user.id(), wordbookId, platform, records);
             initializeProgress(user.id(), wordbookId);
             syncWordbookCount(wordbookId);
 
@@ -177,16 +180,17 @@ public class ImportTaskService {
         jdbcTemplate.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
                     """
-                    INSERT INTO wordbooks(user_id, name, platform, source_name, word_count, created_at)
-                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    INSERT INTO wordbooks(user_id, name, platform, source_name, import_source, word_count, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                     """,
                     Statement.RETURN_GENERATED_KEYS
             );
             statement.setLong(1, userId);
-            statement.setString(2, truncate(name, 120));
+            statement.setString(2, truncate(UserFacingTextNormalizer.normalizeDisplayText(name), 120));
             statement.setString(3, platform.name());
-            statement.setString(4, truncate(sourceName, 120));
-            statement.setInt(5, wordCount);
+            statement.setString(4, truncate(UserFacingTextNormalizer.normalizeDisplayText(sourceName), 120));
+            statement.setString(5, resolveImportSource(platform));
+            statement.setInt(6, wordCount);
             return statement;
         }, keyHolder);
         Number key = keyHolder.getKey();
@@ -196,24 +200,34 @@ public class ImportTaskService {
         return key.longValue();
     }
 
-    private void batchInsertVocabulary(long userId, long wordbookId, List<ImportedVocabularyRecord> records) {
+    private void batchInsertVocabulary(
+            long userId,
+            long wordbookId,
+            com.heima.englishnova.shared.enums.WordImportPlatform platform,
+            List<ImportedVocabularyRecord> records
+    ) {
         jdbcTemplate.batchUpdate(
                 """
-                INSERT INTO vocabulary_entries(user_id, wordbook_id, word, phonetic, meaning_cn, example_sentence, category, difficulty, visibility, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO vocabulary_entries(
+                    user_id, wordbook_id, word, phonetic, meaning_cn, example_sentence, category,
+                    difficulty, visibility, audio_url, import_source, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """,
                 records,
                 records.size(),
                 (preparedStatement, record) -> {
                     preparedStatement.setLong(1, userId);
                     preparedStatement.setLong(2, wordbookId);
-                    preparedStatement.setString(3, truncate(record.word(), 120));
-                    preparedStatement.setString(4, truncate(defaultText(record.phonetic(), "-"), 120));
-                    preparedStatement.setString(5, truncate(defaultText(record.meaning(), "导入词义"), 255));
-                    preparedStatement.setString(6, truncate(defaultText(record.exampleSentence(), record.meaning()), 255));
-                    preparedStatement.setString(7, truncate(defaultText(record.category(), "Anki 导入"), 120));
+                    preparedStatement.setString(3, truncate(TextRepairUtils.repair(record.word()), 120));
+                    preparedStatement.setString(4, truncate(TextRepairUtils.repair(defaultText(record.phonetic(), "-")), 120));
+                    preparedStatement.setString(5, truncate(UserFacingTextNormalizer.normalizeMeaningText(defaultText(record.meaning(), "导入释义")), 255));
+                    preparedStatement.setString(6, truncate(UserFacingTextNormalizer.normalizeDisplayText(defaultText(record.exampleSentence(), record.meaning())), 255));
+                    preparedStatement.setString(7, truncate(UserFacingTextNormalizer.normalizeMeaningText(defaultText(record.category(), "Anki 导入")), 120));
                     preparedStatement.setInt(8, Math.max(1, Math.min(5, record.difficulty())));
                     preparedStatement.setString(9, VocabularyVisibility.PRIVATE.name());
+                    preparedStatement.setString(10, "");
+                    preparedStatement.setString(11, resolveImportSource(platform));
                 }
         );
     }
@@ -267,13 +281,14 @@ public class ImportTaskService {
             String queueName,
             OffsetDateTime finishedAt
     ) {
+        String normalizedSourceName = truncate(UserFacingTextNormalizer.normalizeDisplayText(sourceName), 120);
         String taskId = UUID.randomUUID().toString();
         OffsetDateTime queuedAt = OffsetDateTime.now(ZoneOffset.UTC);
         ImportTaskDto task = new ImportTaskDto(
                 taskId,
                 wordbookId,
                 platform,
-                sourceName,
+                normalizedSourceName,
                 estimatedCards,
                 importedCards,
                 status,
@@ -304,7 +319,7 @@ public class ImportTaskService {
 
     private String resolveSourceName(String sourceName, String originalFileName) {
         if (sourceName != null && !sourceName.isBlank()) {
-            return truncate(sourceName.trim(), 120);
+            return truncate(UserFacingTextNormalizer.normalizeDisplayText(sourceName), 120);
         }
         if (originalFileName != null && !originalFileName.isBlank()) {
             String normalized = originalFileName.trim();
@@ -312,7 +327,7 @@ public class ImportTaskService {
             if (dotIndex > 0) {
                 normalized = normalized.substring(0, dotIndex);
             }
-            return truncate(normalized, 120);
+            return truncate(UserFacingTextNormalizer.normalizeDisplayText(normalized), 120);
         }
         return "anki-import";
     }
@@ -326,9 +341,13 @@ public class ImportTaskService {
 
     private String defaultText(String value, String fallback) {
         if (value == null || value.isBlank()) {
-            return fallback;
+            return TextRepairUtils.repair(fallback);
         }
-        return value;
+        return TextRepairUtils.repair(value);
+    }
+
+    private String resolveImportSource(com.heima.englishnova.shared.enums.WordImportPlatform platform) {
+        return platform.name().toLowerCase(Locale.ROOT).replace('_', '-');
     }
 
     private String truncate(String value, int maxLength) {
