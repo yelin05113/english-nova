@@ -690,3 +690,222 @@
 2026-04-14 16:58:49.184 INFO [main :c.a.n.c.c.i.LocalConfigInfoProcessor] LOCAL_SNAPSHOT_PATH:D:\Projects\english-nova\.local\runtime-home\nacos\config
 2026-04-14 16:58:50.294 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [ed8ba610-1f69-49a0-a343-dcb992e1f73a_config-0] Connected,notify listen context...
 2026-04-14 16:58:50.294 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [ed8ba610-1f69-49a0-a343-dcb992e1f73a_config-0] Connected,notify fuzzy listen context...
+2026-04-14 20:55:51.776 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:55:51.780 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:55:51.800 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:55:51.800 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:55:51.800 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:55:51.811 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:55:51.811 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:55:51.812 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:55:52.003 INFO [Thread-6:c.a.n.c.a.r.i.CredentialWatcher] null No credential found
+2026-04-14 20:55:53.807 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:55:53.812 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:55:53.822 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:55:53.822 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:55:53.822 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:55:53.831 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:55:53.831 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:55:53.832 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:55:54.030 INFO [Thread-6:c.a.n.c.a.r.i.CredentialWatcher] null No credential found
+2026-04-14 20:55:55.860 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:55:55.864 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:55:55.880 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:55:55.880 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:55:55.880 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:55:55.893 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:55:55.893 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:55:55.893 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:55:56.080 INFO [Thread-6:c.a.n.c.a.r.i.CredentialWatcher] null No credential found
+2026-04-14 20:55:58.029 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:55:58.034 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:55:58.049 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:55:58.049 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:55:58.049 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:55:58.056 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:55:58.056 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:55:58.057 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:55:58.268 INFO [Thread-6:c.a.n.c.a.r.i.CredentialWatcher] null No credential found
+2026-04-14 20:55:59.933 INFO [main :c.a.n.c.c.i.Limiter] limitTime:5.0
+2026-04-14 20:55:59.973 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:55:59.977 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:55:59.992 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:55:59.992 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:55:59.992 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:56:00.002 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:56:00.002 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:56:00.002 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:56:00.237 INFO [Thread-6:c.a.n.c.a.r.i.CredentialWatcher] null No credential found
+2026-04-14 20:56:00.337 INFO [main :c.a.n.c.c.i.LocalConfigInfoProcessor] LOCAL_SNAPSHOT_PATH:D:\Projects\english-nova\.local\runtime-home\nacos\config
+2026-04-14 20:56:01.748 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [63706106-e04c-4e83-843d-c5f18c948d97_config-0] Connected,notify listen context...
+2026-04-14 20:56:01.748 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [63706106-e04c-4e83-843d-c5f18c948d97_config-0] Connected,notify fuzzy listen context...
+2026-04-14 20:56:01.956 INFO [main :c.a.n.c.c.i.Limiter] limitTime:5.0
+2026-04-14 20:56:02.055 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:56:02.059 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:56:02.075 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:56:02.075 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:56:02.075 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:56:02.084 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:56:02.084 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:56:02.084 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:56:02.151 INFO [main :c.a.n.c.c.i.LocalConfigInfoProcessor] LOCAL_SNAPSHOT_PATH:D:\Projects\english-nova\.local\runtime-home\nacos\config
+2026-04-14 20:56:02.313 INFO [Thread-6:c.a.n.c.a.r.i.CredentialWatcher] null No credential found
+2026-04-14 20:56:03.479 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [b9ede20a-adb0-4bd3-a242-e2e13a0168e5_config-0] Connected,notify listen context...
+2026-04-14 20:56:03.479 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [b9ede20a-adb0-4bd3-a242-e2e13a0168e5_config-0] Connected,notify fuzzy listen context...
+2026-04-14 20:56:04.028 INFO [main :c.a.n.c.c.i.Limiter] limitTime:5.0
+2026-04-14 20:56:04.265 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:56:04.271 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:56:04.275 INFO [main :c.a.n.c.c.i.LocalConfigInfoProcessor] LOCAL_SNAPSHOT_PATH:D:\Projects\english-nova\.local\runtime-home\nacos\config
+2026-04-14 20:56:04.291 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:56:04.292 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:56:04.292 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:56:04.304 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:56:04.304 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:56:04.305 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:57:42.703 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:57:42.706 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:57:42.716 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:57:42.716 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:57:42.716 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:57:42.724 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:57:42.724 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:57:42.724 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:57:42.876 INFO [main :c.a.n.c.a.r.i.CredentialWatcher] null No credential found
+2026-04-14 20:57:42.974 INFO [main :c.a.n.c.c.i.Limiter] limitTime:5.0
+2026-04-14 20:57:43.226 INFO [main :c.a.n.c.c.i.LocalConfigInfoProcessor] LOCAL_SNAPSHOT_PATH:D:\Projects\english-nova\.local\runtime-home\nacos\config
+2026-04-14 20:57:44.528 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [26dacbae-89b7-4feb-b20a-bedcd4f8cb52_config-0] Connected,notify listen context...
+2026-04-14 20:57:44.528 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [26dacbae-89b7-4feb-b20a-bedcd4f8cb52_config-0] Connected,notify fuzzy listen context...
+2026-04-14 20:57:44.982 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:57:44.986 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:57:45.001 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:57:45.001 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:57:45.001 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:57:45.010 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:57:45.010 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:57:45.010 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:57:45.194 INFO [Thread-6:c.a.n.c.a.r.i.CredentialWatcher] null No credential found
+2026-04-14 20:57:45.230 INFO [main :c.a.n.c.c.i.Limiter] limitTime:5.0
+2026-04-14 20:57:45.478 INFO [main :c.a.n.c.c.i.LocalConfigInfoProcessor] LOCAL_SNAPSHOT_PATH:D:\Projects\english-nova\.local\runtime-home\nacos\config
+2026-04-14 20:57:47.309 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [c6acb20e-c599-4965-b873-f5793f212f5d_config-0] Connected,notify listen context...
+2026-04-14 20:57:47.309 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [c6acb20e-c599-4965-b873-f5793f212f5d_config-0] Connected,notify fuzzy listen context...
+2026-04-14 20:57:47.637 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:57:47.648 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:57:47.671 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:57:47.671 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:57:47.671 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:57:47.690 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:57:47.690 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:57:47.691 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:57:47.968 INFO [Thread-6:c.a.n.c.a.r.i.CredentialWatcher] null No credential found
+2026-04-14 20:57:48.012 INFO [main :c.a.n.c.c.i.Limiter] limitTime:5.0
+2026-04-14 20:57:48.303 INFO [main :c.a.n.c.c.i.LocalConfigInfoProcessor] LOCAL_SNAPSHOT_PATH:D:\Projects\english-nova\.local\runtime-home\nacos\config
+2026-04-14 20:57:50.370 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:57:50.380 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:57:50.413 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:57:50.413 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:57:50.413 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:57:50.433 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:57:50.433 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:57:50.434 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:57:50.936 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [ddb7fceb-c6fa-48a1-8084-efa13ae0c4cb_config-0] Connected,notify listen context...
+2026-04-14 20:57:50.936 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [ddb7fceb-c6fa-48a1-8084-efa13ae0c4cb_config-0] Connected,notify fuzzy listen context...
+2026-04-14 20:57:50.999 INFO [Thread-6:c.a.n.c.a.r.i.CredentialWatcher] null No credential found
+2026-04-14 20:57:51.116 INFO [main :c.a.n.c.c.i.Limiter] limitTime:5.0
+2026-04-14 20:57:51.443 INFO [main :c.a.n.c.c.i.LocalConfigInfoProcessor] LOCAL_SNAPSHOT_PATH:D:\Projects\english-nova\.local\runtime-home\nacos\config
+2026-04-14 20:57:52.718 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:57:52.724 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:57:52.747 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:57:52.748 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:57:52.748 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:57:52.760 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:57:52.760 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:57:52.760 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:57:53.122 INFO [Thread-6:c.a.n.c.a.r.i.CredentialWatcher] null No credential found
+2026-04-14 20:57:53.195 INFO [main :c.a.n.c.c.i.Limiter] limitTime:5.0
+2026-04-14 20:57:53.546 INFO [main :c.a.n.c.c.i.LocalConfigInfoProcessor] LOCAL_SNAPSHOT_PATH:D:\Projects\english-nova\.local\runtime-home\nacos\config
+2026-04-14 20:57:54.538 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [b70d1d5a-1695-4312-9bd2-7ad9fa496097_config-0] Connected,notify listen context...
+2026-04-14 20:57:54.538 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [b70d1d5a-1695-4312-9bd2-7ad9fa496097_config-0] Connected,notify fuzzy listen context...
+2026-04-14 20:57:54.650 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:57:54.657 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:57:54.686 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:57:54.686 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:57:54.686 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:57:54.705 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:57:54.706 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:57:54.707 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:57:55.115 INFO [Thread-6:c.a.n.c.a.r.i.CredentialWatcher] null No credential found
+2026-04-14 20:57:55.353 INFO [main :c.a.n.c.c.i.Limiter] limitTime:5.0
+2026-04-14 20:57:55.707 INFO [main :c.a.n.c.c.i.LocalConfigInfoProcessor] LOCAL_SNAPSHOT_PATH:D:\Projects\english-nova\.local\runtime-home\nacos\config
+2026-04-14 20:57:57.058 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [4c27759d-9995-4709-bb2a-ca7ef2336b16_config-0] Connected,notify listen context...
+2026-04-14 20:57:57.058 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [4c27759d-9995-4709-bb2a-ca7ef2336b16_config-0] Connected,notify fuzzy listen context...
+2026-04-14 20:57:57.437 INFO [main :c.a.n.c.u.ClientBasicParamUtil] [settings] [req-serv] nacos-server port:8848
+2026-04-14 20:57:57.443 INFO [main :c.a.n.c.c.NacosConfigService] Nacos client key init properties: 
+	serverAddr=192.168.80.128:8848
+	username=nacos
+	password=n***s
+
+2026-04-14 20:57:57.473 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.EndpointServerListProvider, match result: false
+2026-04-14 20:57:57.473 INFO [main :c.a.n.c.a.AbstractServerListManager] Load and match ServerListProvider com.alibaba.nacos.client.address.PropertiesListProvider, match result: true
+2026-04-14 20:57:57.473 INFO [main :c.a.n.c.a.AbstractServerListManager] Will use com.alibaba.nacos.client.address.PropertiesListProvider as ServerListProvider
+2026-04-14 20:57:57.491 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] connect timeout:1000
+2026-04-14 20:57:57.491 INFO [main :c.a.n.c.u.ParamUtil] [settings] [http-client] read timeout:3000
+2026-04-14 20:57:57.491 INFO [main :c.a.n.c.u.ParamUtil] PER_TASK_CONFIG_SIZE: 3000.0
+2026-04-14 20:57:57.861 INFO [main :c.a.n.c.a.r.i.CredentialWatcher] null No credential found
+2026-04-14 20:57:57.999 INFO [main :c.a.n.c.c.i.Limiter] limitTime:5.0
+2026-04-14 20:57:58.317 INFO [main :c.a.n.c.c.i.LocalConfigInfoProcessor] LOCAL_SNAPSHOT_PATH:D:\Projects\english-nova\.local\runtime-home\nacos\config
+2026-04-14 20:57:58.795 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [6fa01d04-4fce-476c-9e5e-4d1ef11d7eb1_config-0] Connected,notify listen context...
+2026-04-14 20:57:58.795 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [6fa01d04-4fce-476c-9e5e-4d1ef11d7eb1_config-0] Connected,notify fuzzy listen context...
+2026-04-14 20:58:02.488 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [4c2817f2-99bf-4b01-a9c1-17744e8db0c7_config-0] Connected,notify listen context...
+2026-04-14 20:58:02.488 INFO [com.alibaba.nacos.client.remote.worker.0:c.a.n.c.c.i.ClientWorker] [4c2817f2-99bf-4b01-a9c1-17744e8db0c7_config-0] Connected,notify fuzzy listen context...
