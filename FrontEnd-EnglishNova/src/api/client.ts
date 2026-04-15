@@ -1,4 +1,4 @@
-import type { ApiResponse } from '../types'
+import type { ApiResponse } from '../types/types'
 
 export async function apiFetch<T>(
   path: string,

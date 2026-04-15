@@ -1,24 +1,17 @@
-import type { VocabularyEntry, WordbookProgress, WordbookSummary } from '../types'
+import { useAppStateContext } from '../context/AppStateContext'
 
-interface LibraryViewProps {
-  wordbooks: WordbookSummary[]
-  selectedWordbookId: number | null
-  onSelectWordbook: (id: number) => void
-  selectedWordbook: WordbookSummary | null
-  wordbookProgress: WordbookProgress | null
-  entries: VocabularyEntry[]
-  onStartQuiz: () => void
-}
+export function LibraryView() {
+  const {
+    wordbooks,
+    selectedWordbookId,
+    setSelectedWordbookId,
+    selectedWordbook,
+    wordbookProgress,
+    entries,
+    handleCreateQuiz,
+  } = useAppStateContext()
 
-export function LibraryView({
-  wordbooks,
-  selectedWordbookId,
-  onSelectWordbook,
-  selectedWordbook,
-  wordbookProgress,
-  entries,
-  onStartQuiz,
-}: LibraryViewProps) {
+  const onStartQuiz = () => void handleCreateQuiz()
   return (
     <div className="split">
       <div className="list">
@@ -27,7 +20,7 @@ export function LibraryView({
             key={book.id}
             type="button"
             className={book.id === selectedWordbookId ? 'book active' : 'book'}
-            onClick={() => onSelectWordbook(book.id)}
+            onClick={() => setSelectedWordbookId(book.id)}
           >
             <strong>{book.name}</strong>
             <span>

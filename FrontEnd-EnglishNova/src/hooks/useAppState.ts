@@ -1,4 +1,5 @@
-import { startTransition, useDeferredValue, useEffect, useState } from 'react'
+import { useDeferredValue, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { apiFetch } from '../api/client'
 import { DEFAULT_IMPORT_PLATFORM, TOKEN_KEY } from '../constants'
 import type {
@@ -14,19 +15,18 @@ import type {
   StudyAgenda,
   StudyProgress,
   SystemOverview,
-  ViewKey,
   WordDetail,
   VocabularyEntry,
   WordSearchResponse,
   WordbookProgress,
   WordbookSummary,
-} from '../types'
+} from '../types/types'
 
 export function useAppState() {
+  const navigate = useNavigate()
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) ?? '')
   const [user, setUser] = useState<AuthUser | null>(null)
 
-  const [view, setView] = useState<ViewKey>('auth')
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login')
 
   const [overview, setOverview] = useState<SystemOverview | null>(null)
@@ -66,7 +66,7 @@ export function useAppState() {
     localStorage.removeItem(TOKEN_KEY)
     setToken('')
     setUser(null)
-    setView('auth')
+    navigate('/auth')
     setAgenda(null)
     setProgress(null)
     setPresets([])
@@ -80,7 +80,7 @@ export function useAppState() {
     setSearchSuggestions([])
   }
 
-  async function loadPrivateData(nextView?: ViewKey, authToken = token) {
+  async function loadPrivateData(nextPath?: string, authToken = token) {
     if (!authToken) return
     setLoading(true)
     try {
@@ -106,8 +106,8 @@ export function useAppState() {
       setSelectedWordbookId((current) =>
         current && wordbookData.some((item) => item.id === current) ? current : (wordbookData[0]?.id ?? null),
       )
-      if (nextView) setView(nextView)
-      else if (!user) setView(wordbookData.length ? 'library' : 'imports')
+      if (nextPath) navigate(nextPath)
+      else if (!user) navigate(wordbookData.length ? '/library' : '/imports')
     } finally {
       setLoading(false)
     }
@@ -215,7 +215,7 @@ export function useAppState() {
       localStorage.setItem(TOKEN_KEY, result.accessToken)
       setToken(result.accessToken)
       setUser(result.user)
-      await loadPrivateData('library', result.accessToken)
+      await loadPrivateData('/library', result.accessToken)
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败')
     }
@@ -236,7 +236,7 @@ export function useAppState() {
       setToken(result.accessToken)
       setUser(result.user)
       setSourceName(`${result.user.username}-词书`)
-      await loadPrivateData('imports', result.accessToken)
+      await loadPrivateData('/imports', result.accessToken)
     } catch (err) {
       setError(err instanceof Error ? err.message : '注册失败')
     }
@@ -279,7 +279,7 @@ export function useAppState() {
         true,
       )
       setQuizState(result)
-      setView('quiz')
+      navigate('/quiz')
     } catch (err) {
       setError(err instanceof Error ? err.message : '启动斩词失败')
     }
@@ -323,14 +323,11 @@ export function useAppState() {
 
   const preset = presets.find((item) => item.platform === selectedPlatform)
   const selectedWordbook = wordbooks.find((item) => item.id === selectedWordbookId) ?? null
-  const switchView = (nextView: ViewKey) => startTransition(() => setView(nextView))
 
   return {
     token,
     user,
     clearAuth,
-    view,
-    switchView,
     authTab,
     setAuthTab,
     overview,

@@ -1,11 +1,7 @@
-import type { StudyAgenda, StudyProgress } from '../types'
+import { useAppStateContext } from '../context/AppStateContext'
 
-interface ProgressViewProps {
-  progress: StudyProgress | null
-  agenda: StudyAgenda | null
-}
-
-export function ProgressView({ progress, agenda }: ProgressViewProps) {
+export function ProgressView() {
+  const { progress, agenda } = useAppStateContext()
   return (
     <div className="split">
       <div className="list">

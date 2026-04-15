@@ -1,25 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import { SearchCard } from './SearchCard'
 import { WordDetailModal } from './WordDetailModal'
-import type { SearchHit, SearchSuggestion, WordDetail, WordSearchResponse } from '../types'
+import { useAppStateContext } from '../context/AppStateContext'
+import type { SearchHit, WordDetail } from '../types/types'
 
-interface SearchViewProps {
-  searchQuery: string
-  onSearchQueryChange: (value: string) => void
-  searchResult: WordSearchResponse
-  suggestions: SearchSuggestion[]
-  onPickSuggestion: (value: string) => void
-  onFetchWordDetail: (entryId: number) => Promise<WordDetail>
-}
+export function SearchView() {
+  const {
+    searchQuery,
+    setSearchQuery,
+    searchResult,
+    searchSuggestions,
+    pickSearchSuggestion,
+    getWordDetail,
+  } = useAppStateContext()
 
-export function SearchView({
-  searchQuery,
-  onSearchQueryChange,
-  searchResult,
-  suggestions,
-  onPickSuggestion,
-  onFetchWordDetail,
-}: SearchViewProps) {
+  const onSearchQueryChange = setSearchQuery
+  const suggestions = searchSuggestions
+  const onPickSuggestion = pickSearchSuggestion
+  const onFetchWordDetail = getWordDetail
   const [selectedDetail, setSelectedDetail] = useState<WordDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)

@@ -1,12 +1,12 @@
-import type { ImportPlatform, ViewKey } from './types'
+import type { ImportPlatform } from './types/types'
 
 export const TOKEN_KEY = 'english-nova.jwt'
 export const DEFAULT_IMPORT_PLATFORM: ImportPlatform = 'ANKI'
 
-export const navItems: Array<{ key: ViewKey; label: string }> = [
-  { key: 'library', label: '我的词书' },
-  { key: 'imports', label: '导入中心' },
-  { key: 'quiz', label: '单词斩杀' },
-  { key: 'search', label: '全局搜索' },
-  { key: 'progress', label: '我的进度' },
+export const navItems: Array<{ path: string; label: string }> = [
+  { path: '/library', label: '词书概览' },
+  { path: '/quiz', label: '背词' },
+  { path: '/imports', label: '导入' },
+  { path: '/progress', label: '进度' },
+  { path: '/search', label: '全局搜索' },
 ]

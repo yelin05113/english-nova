@@ -1,4 +1,4 @@
-import type { WordDetail } from '../types'
+import type { WordDetail } from '../types/types'
 
 interface WordDetailModalProps {
   detail: WordDetail
