@@ -1,4 +1,3 @@
-import './App.css'
 import { Route, Routes } from 'react-router'
 import { useAppState } from './hooks/useAppState'
 import { AppStateContext } from './context/AppStateContext'

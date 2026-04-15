@@ -91,10 +91,11 @@ export function SearchView() {
 
   return (
     <>
-      <div className="list">
-        <label className="search-box" ref={searchBoxRef}>
-          <span>搜索英文单词、中文释义或例句</span>
+      <div className="grid gap-[14px]">
+        <label className="relative grid gap-2" ref={searchBoxRef}>
+          <span className="text-forest-deep">搜索英文单词、中文释义或例句</span>
           <input
+            className="w-full border border-[rgba(88,112,90,0.16)] rounded-2xl px-4 py-[14px] bg-[rgba(255,252,247,0.94)] text-forest-deep outline-none focus:border-[rgba(76,103,78,0.36)] focus:shadow-[0_0_0_4px_rgba(134,165,128,0.14)]"
             value={searchQuery}
             onChange={(event) => {
               onSearchQueryChange(event.target.value)
@@ -112,33 +113,33 @@ export function SearchView() {
             }}
           />
           {showSuggestions && searchQuery.trim() && suggestions.length > 0 && (
-            <div className="suggestion-list">
+            <div className="relative mt-2.5 grid gap-2 p-2.5 max-h-[280px] overflow-auto rounded-[18px] border border-[rgba(82,107,84,0.14)] bg-[rgba(255,252,247,0.98)] shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]">
               {suggestions.map((item) => (
                 <button
                   key={`${item.visibility}-${item.entryId}`}
                   type="button"
-                  className="suggestion-item"
+                  className="grid gap-1 w-full border border-[rgba(88,112,90,0.12)] rounded-[14px] px-[14px] py-3 bg-[rgba(247,244,236,0.92)] text-left text-forest-deep cursor-pointer hover:-translate-y-0.5 transition-transform"
                   onClick={() => {
                     setShowSuggestions(false)
                     onPickSuggestion(item.word)
                   }}
                 >
                   <strong>{item.word}</strong>
-                  <span>{item.visibility === 'PRIVATE' ? '我的词书' : '公共词库'}</span>
-                  <small>匹配 {item.matchPercent}%</small>
+                  <span className="text-muted">{item.visibility === 'PRIVATE' ? '我的词书' : '公共词库'}</span>
+                  <small className="text-muted">匹配 {item.matchPercent}%</small>
                 </button>
               ))}
             </div>
           )}
         </label>
-        <div className="split">
-          <div className="list">
+        <div className="flex gap-4 items-start max-[1120px]:grid">
+          <div className="flex-1 grid gap-[14px]">
             <h4>公共词库</h4>
             {searchResult.publicHits.map((item) => (
               <SearchCard key={`p-${item.entryId}`} item={item} onOpen={openDetail} />
             ))}
           </div>
-          <div className="list">
+          <div className="flex-1 grid gap-[14px]">
             <h4>我的词库</h4>
             {searchResult.myHits.map((item) => (
               <SearchCard key={`m-${item.entryId}`} item={item} onOpen={openDetail} />

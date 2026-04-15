@@ -1,81 +1,77 @@
-:root {
-  --paper: #f4efe4;
-  --paper-deep: #ebe4d4;
-  --forest-deep: #2e4634;
-  --ink-soft: #5a6759;
-  --muted: #7c8878;
-  --fern: #64815f;
-  --water: #8faeb0;
-  --line: rgba(89, 111, 87, 0.16);
-  --shadow: 0 22px 48px rgba(70, 90, 71, 0.12);
+@import "tailwindcss";
 
-  color: var(--ink-soft);
-  background:
-    radial-gradient(circle at top left, rgba(220, 233, 210, 0.72), transparent 24%),
-    radial-gradient(circle at top right, rgba(197, 216, 214, 0.66), transparent 22%),
-    linear-gradient(180deg, #f8f5ee, #f2ecdf 42%, #eef1ea);
-  font-family: Aptos, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  line-height: 1.55;
-  font-weight: 400;
+@theme {
+  --color-forest-deep: #2e4634;
+  --color-ink-soft: #5a6759;
+  --color-muted: #7c8878;
+  --color-fern: #64815f;
+  --color-paper: #f4efe4;
+  --color-paper-deep: #ebe4d4;
+  --color-water: #8faeb0;
 }
 
-* {
-  box-sizing: border-box;
-}
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
 
-html {
-  scroll-behavior: smooth;
-}
+  html {
+    scroll-behavior: smooth;
+  }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  color: var(--ink-soft);
-  background:
-    radial-gradient(circle at 15% 20%, rgba(220, 233, 210, 0.76), transparent 20%),
-    radial-gradient(circle at 85% 12%, rgba(196, 214, 211, 0.7), transparent 18%),
-    linear-gradient(180deg, #faf6ef, #f1eadf 46%, #edf0e8);
-}
+  body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    color: #5a6759;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(220, 233, 210, 0.76), transparent 20%),
+      radial-gradient(circle at 85% 12%, rgba(196, 214, 211, 0.7), transparent 18%),
+      linear-gradient(180deg, #faf6ef, #f1eadf 46%, #edf0e8);
+    font-family: Aptos, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.55;
+    font-weight: 400;
+  }
 
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 140px 140px;
-  mask-image: radial-gradient(circle at center, black, transparent 78%);
-  opacity: 0.22;
-}
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 140px 140px;
+    mask-image: radial-gradient(circle at center, black, transparent 78%);
+    opacity: 0.22;
+  }
 
-a,
-button,
-input {
-  -webkit-tap-highlight-color: transparent;
-}
+  a,
+  button,
+  input {
+    -webkit-tap-highlight-color: transparent;
+  }
 
-button {
-  font-family: inherit;
-}
+  button {
+    font-family: inherit;
+  }
 
-h1,
-h2,
-h3 {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-weight: 600;
-}
+  h1,
+  h2,
+  h3 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 600;
+  }
 
-p {
-  margin: 0;
-}
+  p {
+    margin: 0;
+  }
 
-#root {
-  min-height: 100vh;
+  #root {
+    min-height: 100vh;
+  }
 }
