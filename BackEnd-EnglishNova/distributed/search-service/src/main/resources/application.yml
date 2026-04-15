@@ -18,8 +18,8 @@ spring:
   cloud:
     nacos:
       server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
-      username: ${NACOS_USERNAME:nacos}
-      password: ${NACOS_PASSWORD:nacos}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
       discovery:
         namespace: ${NACOS_NAMESPACE:public}
         group: ${NACOS_GROUP:DEFAULT_GROUP}
@@ -29,7 +29,7 @@ spring:
         file-extension: yaml
 
 server:
-  port: ${SERVER_PORT:8083}
+  port: ${SEARCH_SERVICE_PORT:8083}
 
 management:
   endpoints:
