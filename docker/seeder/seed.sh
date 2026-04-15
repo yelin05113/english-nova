@@ -10,8 +10,8 @@ MYSQL_PASSWORD="${MYSQL_PASSWORD:-english_nova}"
 NACOS_BASE_URL="${NACOS_BASE_URL:-http://nacos:8848}"
 NACOS_GROUP="${NACOS_GROUP:-DEFAULT_GROUP}"
 NACOS_NAMESPACE="${NACOS_NAMESPACE:-public}"
-NACOS_USERNAME="${NACOS_USERNAME:-}"
-NACOS_PASSWORD="${NACOS_PASSWORD:-}"
+NACOS_USERNAME="${NACOS_USERNAME:-nacos}"
+NACOS_PASSWORD="${NACOS_PASSWORD:-nacos}"
 NACOS_CONFIG_DIR="${NACOS_CONFIG_DIR:-/seed/nacos/configs}"
 
 wait_for_mysql() {
@@ -53,6 +53,32 @@ get_nacos_token() {
     -d "password=${NACOS_PASSWORD}" 2>/dev/null || true)"
 
   printf '%s' "${login_response}" | sed -n 's/.*"accessToken"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
+}
+
+init_nacos_admin_password() {
+  if [ -z "${NACOS_PASSWORD}" ]; then
+    return 0
+  fi
+
+  init_response="$(curl -fsS \
+    -X POST "${NACOS_BASE_URL}/nacos/v3/auth/user/admin" \
+    -d "password=${NACOS_PASSWORD}" 2>/dev/null || true)"
+  init_code="$(printf '%s' "${init_response}" | sed -n 's/.*"code"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p')"
+
+  case "${init_code}" in
+    0)
+      echo "Nacos admin password initialized."
+      return 0
+      ;;
+    409)
+      echo "Nacos admin password already initialized."
+      return 0
+      ;;
+    *)
+      echo "Nacos admin password init skipped (response: ${init_response:-empty})."
+      return 1
+      ;;
+  esac
 }
 
 publish_nacos_config() {
@@ -101,6 +127,12 @@ wait_for_nacos_and_seed() {
 
   echo "Seeding Nacos configs at ${NACOS_BASE_URL}..."
   for attempt in $(seq 1 60); do
+    if ! init_nacos_admin_password; then
+      echo "Nacos auth init is not ready yet (${attempt}/60)."
+      sleep 2
+      continue
+    fi
+
     all_published=1
 
     for config_file in "${NACOS_CONFIG_DIR}"/*.yaml; do
