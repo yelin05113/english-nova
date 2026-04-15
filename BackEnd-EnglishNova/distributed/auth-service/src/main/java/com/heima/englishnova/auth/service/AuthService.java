@@ -19,6 +19,10 @@ import java.sql.Statement;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * 认证业务服务。
+ * <p>处理用户注册、登录校验及 JWT 令牌发放。</p>
+ */
 @Service
 public class AuthService {
 
@@ -26,6 +30,13 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService jwtTokenService;
 
+    /**
+     * 构造注入所需依赖。
+     *
+     * @param jdbcTemplate     Spring JDBC 模板，用于数据库操作
+     * @param passwordEncoder  密码编码器，用于密码加密与校验
+     * @param jwtTokenService  JWT 令牌服务，用于签发登录令牌
+     */
     public AuthService(
             JdbcTemplate jdbcTemplate,
             PasswordEncoder passwordEncoder,
@@ -36,6 +47,14 @@ public class AuthService {
         this.jwtTokenService = jwtTokenService;
     }
 
+    /**
+     * 用户注册。
+     * <p>校验用户名与邮箱唯一性后，将用户信息写入数据库并签发 JWT 令牌。</p>
+     *
+     * @param request 注册请求参数
+     * @return 包含 JWT 令牌及用户信息的响应
+     * @throws IllegalArgumentException 当用户名或邮箱已存在，或主键生成失败时抛出
+     */
     @Transactional
     public AuthTokenResponse register(RegisterRequest request) {
         String username = request.username().trim();
@@ -68,6 +87,15 @@ public class AuthService {
         return new AuthTokenResponse(token, new AuthUserDto(userId, username));
     }
 
+    /**
+     * 用户登录。
+     * <p>根据账号查询用户，校验密码与状态后签发 JWT 令牌。</p>
+     *
+     * @param request 登录请求参数
+     * @return 包含 JWT 令牌及用户信息的响应
+     * @throws UnauthorizedException 当账号不存在或密码错误时抛出
+     * @throws ForbiddenException    当账号状态非 ACTIVE 时抛出
+     */
     public AuthTokenResponse login(LoginRequest request) {
         UserRow user = findByAccount(request.account().trim());
         if (user == null || !passwordEncoder.matches(request.password(), user.passwordHash())) {
@@ -80,6 +108,13 @@ public class AuthService {
         return new AuthTokenResponse(token, new AuthUserDto(user.id(), user.username()));
     }
 
+    /**
+     * 确保用户名与邮箱在系统中唯一。
+     *
+     * @param username 待校验的用户名
+     * @param email    待校验的邮箱
+     * @throws IllegalArgumentException 当用户名或邮箱已存在时抛出
+     */
     private void ensureUnique(String username, String email) {
         Integer usernameCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM users WHERE username = ?",
@@ -100,6 +135,12 @@ public class AuthService {
         }
     }
 
+    /**
+     * 根据账号（用户名或邮箱）查询用户信息。
+     *
+     * @param account 账号（用户名或邮箱）
+     * @return 匹配的用户记录，若不存在则返回 {@code null}
+     */
     private UserRow findByAccount(String account) {
         List<UserRow> users = jdbcTemplate.query(
                 """
@@ -120,6 +161,14 @@ public class AuthService {
         return users.isEmpty() ? null : users.get(0);
     }
 
+    /**
+     * 用户数据库记录内部 DTO。
+     *
+     * @param id           用户 ID
+     * @param username     用户名
+     * @param passwordHash 密码哈希值
+     * @param status       用户状态
+     */
     private record UserRow(
             long id,
             String username,

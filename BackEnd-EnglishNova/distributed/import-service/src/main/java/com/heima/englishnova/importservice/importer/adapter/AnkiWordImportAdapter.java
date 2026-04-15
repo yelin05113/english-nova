@@ -26,6 +26,10 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+/**
+ * Anki 单词导入适配器，支持解析 .apkg 卡包文件并提取牌组中的单词、释义与例句。
+ * <p>核心流程：解压 APKG → 读取 SQLite collection 数据库 → 解析 notes 字段 → 按 word|meaning 去重。
+ */
 @Component
 public class AnkiWordImportAdapter implements WordImportAdapter {
 
@@ -38,11 +42,21 @@ public class AnkiWordImportAdapter implements WordImportAdapter {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * 返回适配器对应的导入平台。
+     *
+     * @return {@link WordImportPlatform#ANKI}
+     */
     @Override
     public WordImportPlatform platform() {
         return WordImportPlatform.ANKI;
     }
 
+    /**
+     * 返回 Anki 导入预设信息。
+     *
+     * @return 导入预设 DTO
+     */
     @Override
     public ImportPresetDto preset() {
         return new ImportPresetDto(
@@ -54,11 +68,24 @@ public class AnkiWordImportAdapter implements WordImportAdapter {
         );
     }
 
+    /**
+     * 判断是否支持 .apkg 后缀的文件。
+     *
+     * @param fileName 文件名
+     * @return 若文件名为 .apkg 结尾则返回 true
+     */
     @Override
     public boolean supportsFile(String fileName) {
         return fileName != null && fileName.toLowerCase(Locale.ROOT).endsWith(".apkg");
     }
 
+    /**
+     * 解析 Anki 卡包文件并返回标准化的词汇记录列表。
+     *
+     * @param filePath 卡包文件路径
+     * @return 词汇记录列表
+     * @throws IOException 当文件读取或解析失败时
+     */
     @Override
     public List<ImportedVocabularyRecord> importEntries(Path filePath) throws IOException {
         Path databasePath = extractCollectionDatabase(filePath);
@@ -72,6 +99,14 @@ public class AnkiWordImportAdapter implements WordImportAdapter {
         }
     }
 
+    /**
+     * 从 APKG 压缩包中提取 collection SQLite 数据库到临时文件。
+     * 优先查找 collection.anki21，若不存在则回退到 collection.anki2。
+     *
+     * @param filePath APKG 文件路径
+     * @return 提取出的 SQLite 临时文件路径
+     * @throws IOException 当文件读取失败或找不到 collection 数据库时
+     */
     private Path extractCollectionDatabase(Path filePath) throws IOException {
         Path extracted = Files.createTempFile("english-nova-anki-", ".anki2");
         try (ZipFile zipFile = new ZipFile(filePath.toFile())) {
@@ -90,6 +125,15 @@ public class AnkiWordImportAdapter implements WordImportAdapter {
         return extracted;
     }
 
+    /**
+     * 读取 Anki 数据库中的牌组（deck）名称映射。
+     * <p>从 col 表的 decks JSON 字段解析，键为 deck ID，值为 deck 名称。
+     *
+     * @param connection SQLite 连接
+     * @return deck ID 到 deck 名称的映射
+     * @throws SQLException 当 SQL 执行失败时
+     * @throws IOException  当 JSON 解析失败时
+     */
     private Map<Long, String> readDeckNames(Connection connection) throws SQLException, IOException {
         try (PreparedStatement statement = connection.prepareStatement("SELECT decks FROM col LIMIT 1");
              ResultSet resultSet = statement.executeQuery()) {
@@ -121,6 +165,15 @@ public class AnkiWordImportAdapter implements WordImportAdapter {
         }
     }
 
+    /**
+     * 读取 notes 与 cards 表，将每个 note 的字段拆分为单词记录，并按 word|meaning 去重。
+     * <p>算法：以 note.id 分组，取最小 did 作为所属 deck；flds 按 \u001f 分割后映射为 word、meaning 等字段。
+     *
+     * @param connection SQLite 连接
+     * @param deckNames  牌组名称映射
+     * @return 去重后的词汇记录列表
+     * @throws SQLException 当 SQL 执行失败时
+     */
     private List<ImportedVocabularyRecord> readNotes(Connection connection, Map<Long, String> deckNames) throws SQLException {
         String sql = """
                 SELECT n.flds, n.tags, MIN(c.did) AS did
@@ -151,6 +204,20 @@ public class AnkiWordImportAdapter implements WordImportAdapter {
         return List.copyOf(records.values());
     }
 
+    /**
+     * 将 Anki 字段数组映射为 {@link ImportedVocabularyRecord}。
+     * <p>启发式规则：
+     * <ul>
+     *   <li>若第一个字段含中文且第二个字段含拉丁字母，则交换两者（保证 word 在前）。</li>
+     *   <li>优先从字段中提取 /.../ 格式的音标。</li>
+     *   <li>分类优先使用 deckName，其次使用 tags，最后回退为 "Anki 导入"。</li>
+     * </ul>
+     *
+     * @param fields   字段数组
+     * @param deckName 所属牌组名称
+     * @param tags     标签字符串
+     * @return 词汇记录，若无法提取有效单词则返回 null
+     */
     private ImportedVocabularyRecord mapFields(String[] fields, String deckName, String tags) {
         if (fields.length == 0) {
             return null;
@@ -185,6 +252,12 @@ public class AnkiWordImportAdapter implements WordImportAdapter {
         return new ImportedVocabularyRecord(word, phonetic, meaning, example, category, scoreDifficulty(word));
     }
 
+    /**
+     * 从字段数组中提取以斜杠包裹的音标文本（如 /kæt/）。
+     *
+     * @param fields 字段数组
+     * @return 提取到的音标，若未找到则返回 "-"
+     */
     private String extractPhonetic(String[] fields) {
         for (String field : fields) {
             String cleaned = cleanField(field);
@@ -195,6 +268,12 @@ public class AnkiWordImportAdapter implements WordImportAdapter {
         return "-";
     }
 
+    /**
+     * 将标签字符串中的多余空白压缩为单个空格。
+     *
+     * @param tags 原始标签字符串
+     * @return 清理后的标签字符串
+     */
     private String cleanTags(String tags) {
         if (tags == null) {
             return "";
@@ -202,6 +281,12 @@ public class AnkiWordImportAdapter implements WordImportAdapter {
         return MULTI_SPACE.matcher(tags.trim()).replaceAll(" ");
     }
 
+    /**
+     * 清理单个字段：移除 sound 标签、HTML 标签与换行符，进行 HTML 反转义，并压缩空白。
+     *
+     * @param value 原始字段值
+     * @return 清理后的纯文本
+     */
     private String cleanField(String value) {
         if (value == null) {
             return "";
@@ -214,14 +299,33 @@ public class AnkiWordImportAdapter implements WordImportAdapter {
         return MULTI_SPACE.matcher(text).replaceAll(" ").trim();
     }
 
+    /**
+     * 判断文本是否包含中文字符（CJK HAN）。
+     *
+     * @param value 待检测文本
+     * @return 若包含中文则返回 true
+     */
     private boolean containsChinese(String value) {
         return CJK.matcher(value).find();
     }
 
+    /**
+     * 判断文本是否包含拉丁字母。
+     *
+     * @param value 待检测文本
+     * @return 若包含拉丁字母则返回 true
+     */
     private boolean containsLatin(String value) {
         return LATIN.matcher(value).find();
     }
 
+    /**
+     * 根据单词长度计算难度等级（1-5）。
+     * <p>规则：长度 ≥10 为 5，≥8 为 4，≥6 为 3，≥4 为 2，其余为 1。
+     *
+     * @param word 单词
+     * @return 难度等级
+     */
     private int scoreDifficulty(String word) {
         int length = word == null ? 0 : word.trim().length();
         if (length >= 10) {

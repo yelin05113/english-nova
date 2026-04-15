@@ -5,36 +5,49 @@ import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
+/**
+ * Elasticsearch 搜索词条文档实体。
+ */
 @Document(indexName = "english-nova-words")
 public class SearchEntryDocument {
 
+    /** 文档 ID（与 Elasticsearch _id 一致）。 */
     @Id
     private String id;
 
+    /** 词汇条目 ID。 */
     @Field(type = FieldType.Long)
     private Long entryId;
 
+    /** 条目所属用户 ID。 */
     @Field(type = FieldType.Long)
     private Long ownerUserId;
 
+    /** 条目可见性（PUBLIC / PRIVATE）。 */
     @Field(type = FieldType.Keyword)
     private String visibility;
 
+    /** 所属词书 ID。 */
     @Field(type = FieldType.Long)
     private Long wordbookId;
 
+    /** 单词文本。 */
     @Field(type = FieldType.Text)
     private String word;
 
+    /** 音标。 */
     @Field(type = FieldType.Text)
     private String phonetic;
 
+    /** 中文释义。 */
     @Field(type = FieldType.Text)
     private String meaningCn;
 
+    /** 例句。 */
     @Field(type = FieldType.Text)
     private String exampleSentence;
 
+    /** 分类/词性。 */
     @Field(type = FieldType.Text)
     private String category;
 

@@ -7,14 +7,27 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+/**
+ * 百词斩（Baicizhan）导入适配器，声明支持的平台与文件格式预设。
+ */
 @Component
 public class BaicizhanWordImportAdapter implements WordImportAdapter {
 
+    /**
+     * 返回适配器对应的导入平台。
+     *
+     * @return {@link WordImportPlatform#BAICIZHAN}
+     */
     @Override
     public WordImportPlatform platform() {
         return WordImportPlatform.BAICIZHAN;
     }
 
+    /**
+     * 返回 Baicizhan 导入预设信息。
+     *
+     * @return 导入预设 DTO
+     */
     @Override
     public ImportPresetDto preset() {
         return new ImportPresetDto(

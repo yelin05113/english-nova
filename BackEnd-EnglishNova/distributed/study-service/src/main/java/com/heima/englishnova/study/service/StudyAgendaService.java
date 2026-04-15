@@ -10,15 +10,29 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * 学习计划业务服务。根据用户学习进度生成今日学习计划与进度统计。
+ */
 @Service
 public class StudyAgendaService {
 
     private final JdbcTemplate jdbcTemplate;
 
+    /**
+     * 构造函数。
+     *
+     * @param jdbcTemplate Spring JDBC 模板
+     */
     public StudyAgendaService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * 获取今日学习计划。
+     *
+     * @param request HTTP 请求
+     * @return 学习计划
+     */
     public StudyAgendaDto getTodayAgenda(HttpServletRequest request) {
         CurrentUser user = RequestUserExtractor.require(request);
         ProgressRow progress = loadProgress(user.id());
@@ -33,6 +47,12 @@ public class StudyAgendaService {
         );
     }
 
+    /**
+     * 获取学习进度统计。
+     *
+     * @param request HTTP 请求
+     * @return 学习进度
+     */
     public StudyProgressDto getProgress(HttpServletRequest request) {
         CurrentUser user = RequestUserExtractor.require(request);
         ProgressRow progress = loadProgress(user.id());
@@ -68,6 +88,12 @@ public class StudyAgendaService {
         );
     }
 
+    /**
+     * 从数据库加载用户的学习进度汇总数据。
+     *
+     * @param userId 用户ID
+     * @return 进度汇总行
+     */
     private ProgressRow loadProgress(long userId) {
         return jdbcTemplate.query(
                 """
@@ -96,6 +122,12 @@ public class StudyAgendaService {
         );
     }
 
+    /**
+     * 根据学习进度生成推荐的学习重点列表。
+     *
+     * @param progress 进度汇总数据
+     * @return 学习重点描述列表
+     */
     private List<String> buildFocusAreas(ProgressRow progress) {
         if (progress.totalWords() == 0) {
             return List.of("先导入一个词书，系统会自动生成你的个人学习面板");
@@ -109,6 +141,15 @@ public class StudyAgendaService {
         return List.of("本轮词书接近清空", "可以开始下一本词书", "继续巩固公共词库干扰项");
     }
 
+    /**
+ * 用户词汇学习进度汇总记录。
+ *
+ * @param totalWords     总词汇数
+ * @param clearedWords   已掌握词汇数
+ * @param inProgressWords 学习中词汇数
+ * @param newWords       新词汇数
+ * @param wordbooks      词书数量
+ */
     private record ProgressRow(
             int totalWords,
             int clearedWords,
@@ -118,6 +159,12 @@ public class StudyAgendaService {
     ) {
     }
 
+    /**
+ * 用户答题准确率汇总记录。
+ *
+ * @param answeredQuestions 答题总数
+ * @param correctAnswers    正确答题数
+ */
     private record AccuracyRow(
             int answeredQuestions,
             int correctAnswers

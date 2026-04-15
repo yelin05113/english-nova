@@ -6,9 +6,18 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * 系统概览业务服务。
+ * <p>负责组装并返回系统基本信息、模块状态及支持特性列表。</p>
+ */
 @Service
 public class SystemOverviewService {
 
+    /**
+     * 获取系统概览数据。
+     *
+     * @return 包含项目名称、描述、支持平台、模块状态及特性列表的概览 DTO
+     */
     public SystemOverviewDto getOverview() {
         return new SystemOverviewDto(
                 "English Nova",

@@ -36,6 +36,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+/**
+ * 导入任务业务服务。处理词书导入任务创建、文件解析、批量写入与进度同步等核心业务逻辑。
+ */
 @Service
 public class ImportTaskService {
 
@@ -44,6 +47,14 @@ public class ImportTaskService {
     private final JdbcTemplate jdbcTemplate;
     private final RabbitTemplate rabbitTemplate;
 
+    /**
+     * 构造函数。
+     *
+     * @param dispatcher     导入适配器调度器
+     * @param properties     EnglishNova 配置属性
+     * @param jdbcTemplate   Spring JDBC 模板
+     * @param rabbitTemplate RabbitMQ 模板
+     */
     public ImportTaskService(
             WordImportDispatcher dispatcher,
             EnglishNovaProperties properties,
@@ -56,6 +67,11 @@ public class ImportTaskService {
         this.rabbitTemplate = rabbitTemplate;
     }
 
+    /**
+     * 列出所有导入平台预设。
+     *
+     * @return 预设列表
+     */
     public List<ImportPresetDto> listPresets() {
         return dispatcher.getAdapters().stream()
                 .map(WordImportAdapter::preset)
@@ -63,6 +79,12 @@ public class ImportTaskService {
                 .toList();
     }
 
+    /**
+     * 查询用户的导入任务列表。
+     *
+     * @param user 当前用户
+     * @return 导入任务列表
+     */
     public List<ImportTaskDto> listTasks(CurrentUser user) {
         return jdbcTemplate.query(
                 """
@@ -87,6 +109,13 @@ public class ImportTaskService {
         );
     }
 
+    /**
+     * 创建异步导入任务。
+     *
+     * @param user    当前用户
+     * @param request 导入任务请求
+     * @return 导入任务 DTO
+     */
     @Transactional
     public ImportTaskDto createTask(CurrentUser user, ImportTaskRequest request) {
         requireAdapter(request.platform());
@@ -105,6 +134,15 @@ public class ImportTaskService {
         return task;
     }
 
+    /**
+     * 通过文件上传直接导入词书。
+     *
+     * @param user       当前用户
+     * @param platform   导入平台
+     * @param sourceName 来源名称
+     * @param file       上传文件
+     * @return 导入任务 DTO
+     */
     @Transactional
     public ImportTaskDto importFile(CurrentUser user, com.heima.englishnova.shared.enums.WordImportPlatform platform, String sourceName, MultipartFile file) {
         if (user == null) {
@@ -167,6 +205,13 @@ public class ImportTaskService {
         }
     }
 
+    /**
+     * 获取指定平台的适配器，若不存在则抛出异常。
+     *
+     * @param platform 平台类型
+     * @return 对应的导入适配器
+     * @throws NotFoundException 当平台不受支持时
+     */
     private WordImportAdapter requireAdapter(com.heima.englishnova.shared.enums.WordImportPlatform platform) {
         WordImportAdapter adapter = dispatcher.getAdapter(platform);
         if (adapter == null) {
@@ -175,6 +220,16 @@ public class ImportTaskService {
         return adapter;
     }
 
+    /**
+     * 创建词书记录并返回自增主键。
+     *
+     * @param userId     用户ID
+     * @param name       词书名称
+     * @param platform   导入平台
+     * @param sourceName 来源名称
+     * @param wordCount  词汇数量
+     * @return 新建词书ID
+     */
     private long createWordbook(long userId, String name, com.heima.englishnova.shared.enums.WordImportPlatform platform, String sourceName, int wordCount) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
@@ -200,6 +255,14 @@ public class ImportTaskService {
         return key.longValue();
     }
 
+    /**
+     * 批量插入词汇条目到数据库。
+     *
+     * @param userId     用户ID
+     * @param wordbookId 词书ID
+     * @param platform   导入平台
+     * @param records    词汇记录列表
+     */
     private void batchInsertVocabulary(
             long userId,
             long wordbookId,
@@ -232,6 +295,12 @@ public class ImportTaskService {
         );
     }
 
+    /**
+     * 为词书下所有词汇初始化用户学习进度记录。
+     *
+     * @param userId     用户ID
+     * @param wordbookId 词书ID
+     */
     private void initializeProgress(long userId, long wordbookId) {
         List<Long> entryIds = jdbcTemplate.query(
                 "SELECT id FROM vocabulary_entries WHERE user_id = ? AND wordbook_id = ?",
@@ -254,6 +323,11 @@ public class ImportTaskService {
         );
     }
 
+    /**
+     * 同步词书的词汇数量统计。
+     *
+     * @param wordbookId 词书ID
+     */
     private void syncWordbookCount(long wordbookId) {
         jdbcTemplate.update(
                 """
@@ -270,6 +344,20 @@ public class ImportTaskService {
         );
     }
 
+    /**
+     * 持久化导入任务记录到数据库。
+     *
+     * @param userId        用户ID
+     * @param wordbookId    词书ID（可为 null）
+     * @param platform      导入平台
+     * @param sourceName    来源名称
+     * @param estimatedCards 预估词汇数
+     * @param importedCards  已导入词汇数
+     * @param status        任务状态
+     * @param queueName     队列名称
+     * @param finishedAt    完成时间
+     * @return 导入任务 DTO
+     */
     private ImportTaskDto persistTask(
             long userId,
             Long wordbookId,
@@ -317,6 +405,13 @@ public class ImportTaskService {
         return task;
     }
 
+    /**
+     * 解析来源名称，优先使用用户指定名称，否则从文件名推导。
+     *
+     * @param sourceName       用户提供的来源名称
+     * @param originalFileName 原始文件名
+     * @return 最终来源名称
+     */
     private String resolveSourceName(String sourceName, String originalFileName) {
         if (sourceName != null && !sourceName.isBlank()) {
             return truncate(UserFacingTextNormalizer.normalizeDisplayText(sourceName), 120);
@@ -332,6 +427,12 @@ public class ImportTaskService {
         return "anki-import";
     }
 
+    /**
+     * 将文件名中的特殊字符替换为下划线，确保文件名安全。
+     *
+     * @param originalFileName 原始文件名
+     * @return 安全的文件名
+     */
     private String safeFileName(String originalFileName) {
         if (originalFileName == null || originalFileName.isBlank()) {
             return "upload.bin";
@@ -339,6 +440,13 @@ public class ImportTaskService {
         return originalFileName.replaceAll("[^a-zA-Z0-9._-]", "_");
     }
 
+    /**
+     * 返回有效值或修复后的兜底文本。
+     *
+     * @param value    原始值
+     * @param fallback 兜底默认值
+     * @return 修复后的文本
+     */
     private String defaultText(String value, String fallback) {
         if (value == null || value.isBlank()) {
             return TextRepairUtils.repair(fallback);
@@ -346,10 +454,23 @@ public class ImportTaskService {
         return TextRepairUtils.repair(value);
     }
 
+    /**
+     * 根据平台枚举推导导入来源字符串。
+     *
+     * @param platform 导入平台
+     * @return 小写横线格式的来源标识
+     */
     private String resolveImportSource(com.heima.englishnova.shared.enums.WordImportPlatform platform) {
         return platform.name().toLowerCase(Locale.ROOT).replace('_', '-');
     }
 
+    /**
+     * 截断字符串至指定最大长度。
+     *
+     * @param value     原始字符串
+     * @param maxLength 最大长度
+     * @return 截断后的字符串
+     */
     private String truncate(String value, int maxLength) {
         if (value == null) {
             return "";
@@ -360,6 +481,14 @@ public class ImportTaskService {
         return value.substring(0, maxLength);
     }
 
+    /**
+     * 从结果集中安全获取可能为 null 的长整型值。
+     *
+     * @param resultSet 数据库结果集
+     * @param column    列名
+     * @return 长整型值，若为 null 则返回 null
+     * @throws java.sql.SQLException 当数据库访问出错时
+     */
     private Long getLong(java.sql.ResultSet resultSet, String column) throws java.sql.SQLException {
         long value = resultSet.getLong(column);
         return resultSet.wasNull() ? null : value;

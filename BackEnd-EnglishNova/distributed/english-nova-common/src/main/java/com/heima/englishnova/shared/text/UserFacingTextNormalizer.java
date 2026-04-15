@@ -6,6 +6,9 @@ import java.util.Map;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+/**
+ * 面向用户的文本规范化工具，提供繁体转简体、HTML 清理与多义词去重等能力。
+ */
 public final class UserFacingTextNormalizer {
 
     private static final ThreadLocal<Transliterator> TRADITIONAL_TO_SIMPLIFIED =
@@ -39,6 +42,12 @@ public final class UserFacingTextNormalizer {
     private UserFacingTextNormalizer() {
     }
 
+    /**
+     * 规范化面向用户展示的文本内容，执行繁简转换与空白压缩。
+     *
+     * @param value 原始文本
+     * @return 规范化后的文本
+     */
     public static String normalizeDisplayText(String value) {
         if (value == null || value.isBlank()) {
             return "";
@@ -59,6 +68,12 @@ public final class UserFacingTextNormalizer {
                 .trim();
     }
 
+    /**
+     * 规范化释义文本，在展示规范化基础上对多义词进行去重合并。
+     *
+     * @param value 原始释义文本
+     * @return 规范化后的释义文本
+     */
     public static String normalizeMeaningText(String value) {
         String normalized = normalizeDisplayText(value);
         if (normalized.isBlank()) {

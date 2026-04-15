@@ -32,15 +32,29 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+/**
+ * 斩词业务服务。处理词书列表查询、词条浏览、斩词会话创建与作答等核心业务逻辑。
+ */
 @Service
 public class QuizService {
 
     private final JdbcTemplate jdbcTemplate;
 
+    /**
+     * 构造函数。
+     *
+     * @param jdbcTemplate Spring JDBC 模板
+     */
     public QuizService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * 查询用户的所有词书列表。
+     *
+     * @param user 当前用户
+     * @return 词书概要列表
+     */
     public List<WordbookSummaryDto> listWordbooks(CurrentUser user) {
         return jdbcTemplate.query(
                 """
@@ -72,6 +86,13 @@ public class QuizService {
         );
     }
 
+    /**
+     * 查询指定词书的词条列表。
+     *
+     * @param user       当前用户
+     * @param wordbookId 词书 ID
+     * @return 词条列表
+     */
     public List<VocabularyEntryDto> listEntries(CurrentUser user, long wordbookId) {
         requireWordbook(user.id(), wordbookId);
         return jdbcTemplate.query(
@@ -96,6 +117,13 @@ public class QuizService {
         );
     }
 
+    /**
+     * 获取指定词书的学习进度。
+     *
+     * @param user       当前用户
+     * @param wordbookId 词书 ID
+     * @return 词书学习进度
+     */
     public WordbookProgressDto getWordbookProgress(CurrentUser user, long wordbookId) {
         requireWordbook(user.id(), wordbookId);
         return jdbcTemplate.query(
@@ -125,6 +153,13 @@ public class QuizService {
         );
     }
 
+    /**
+     * 创建斩词会话，为词书中每个词条生成四选一题目。
+     *
+     * @param user    当前用户
+     * @param request 创建会话请求
+     * @return 会话状态
+     */
     @Transactional
     public QuizSessionStateDto createSession(CurrentUser user, CreateQuizSessionRequest request) {
         long wordbookId = request.wordbookId();
@@ -180,6 +215,13 @@ public class QuizService {
         return getSessionState(user, sessionId);
     }
 
+    /**
+     * 获取斩词会话当前状态。
+     *
+     * @param user      当前用户
+     * @param sessionId 会话 ID
+     * @return 会话状态
+     */
     public QuizSessionStateDto getSessionState(CurrentUser user, String sessionId) {
         SessionRow session = requireSession(user.id(), sessionId);
         QuizQuestionDto nextQuestion = loadNextQuestion(sessionId, session.totalQuestions());
@@ -193,6 +235,14 @@ public class QuizService {
         return new QuizSessionStateDto(mapSession(session), nextQuestion);
     }
 
+    /**
+     * 提交一题作答，更新进度并返回结果。
+     *
+     * @param user      当前用户
+     * @param sessionId 会话 ID
+     * @param request   作答请求
+     * @return 作答结果
+     */
     @Transactional
     public QuizAnswerResultDto answer(CurrentUser user, String sessionId, QuizAnswerRequest request) {
         SessionRow session = requireSession(user.id(), sessionId);
@@ -262,6 +312,13 @@ public class QuizService {
         );
     }
 
+    /**
+     * 根据斩词模式和题目索引决定出题方式。
+     *
+     * @param mode  斩词模式
+     * @param index 题目索引
+     * @return 出题方式
+     */
     private PromptType resolvePromptType(QuizMode mode, int index) {
         return switch (mode) {
             case CN_TO_EN -> PromptType.CN_TO_EN;
@@ -270,6 +327,14 @@ public class QuizService {
         };
     }
 
+    /**
+     * 构建一题目的完整出题信息，包括提示文本、选项和正确答案。
+     *
+     * @param userId     用户 ID
+     * @param entry      词条行数据
+     * @param promptType 出题方式
+     * @return 出题负载
+     */
     private AttemptPayload buildAttemptPayload(long userId, EntryRow entry, PromptType promptType) {
         String correctOption = promptType == PromptType.CN_TO_EN
                 ? TextRepairUtils.repair(entry.word())
@@ -284,6 +349,15 @@ public class QuizService {
         return new AttemptPayload(promptText, options, correctOption);
     }
 
+    /**
+     * 加载三个干扰项：优先从用户词条中选取，不足时从公共词条补充。
+     *
+     * @param userId        用户 ID
+     * @param entryId       当前词条 ID
+     * @param promptType    出题方式
+     * @param correctOption 正确选项文本
+     * @return 干扰选项列表（长度为 3）
+     */
     private List<String> loadDistractors(long userId, long entryId, PromptType promptType, String correctOption) {
         LinkedHashSet<String> values = new LinkedHashSet<>();
         String field = promptType == PromptType.CN_TO_EN ? "word" : "meaning_cn";
@@ -317,6 +391,13 @@ public class QuizService {
         return new ArrayList<>(values);
     }
 
+    /**
+     * 将候选文本加入干扰项集合，跳过空值和与正确答案重复的值。
+     *
+     * @param values        干扰项集合
+     * @param candidate     候选文本
+     * @param correctOption 正确选项文本
+     */
     private void addCandidate(LinkedHashSet<String> values, String candidate, String correctOption) {
         if (candidate == null || candidate.isBlank()) {
             return;
@@ -330,6 +411,12 @@ public class QuizService {
         values.add(normalized);
     }
 
+    /**
+     * 判断选项文本是否包含中文字符。
+     *
+     * @param value 选项文本
+     * @return 是否包含中文
+     */
     private boolean promptLooksChinese(String value) {
         if (value == null || value.isBlank()) {
             return false;
@@ -342,6 +429,13 @@ public class QuizService {
         return false;
     }
 
+    /**
+     * 查询并返回斩词会话行，若不存在则抛出 NotFoundException。
+     *
+     * @param userId    用户 ID
+     * @param sessionId 会话 ID
+     * @return 会话行数据
+     */
     private SessionRow requireSession(long userId, String sessionId) {
         List<SessionRow> sessions = jdbcTemplate.query(
                 """
@@ -369,6 +463,14 @@ public class QuizService {
         return sessions.get(0);
     }
 
+    /**
+     * 查询并返回题目行，若不存在则抛出 NotFoundException。
+     *
+     * @param userId    用户 ID
+     * @param sessionId 会话 ID
+     * @param attemptId 题目 ID
+     * @return 题目行数据
+     */
     private AttemptRow requireAttempt(long userId, String sessionId, long attemptId) {
         List<AttemptRow> attempts = jdbcTemplate.query(
                 """
@@ -393,6 +495,13 @@ public class QuizService {
         return attempts.get(0);
     }
 
+    /**
+     * 加载会话中下一道未作答的题目，若无则返回 null。
+     *
+     * @param sessionId      会话 ID
+     * @param totalQuestions 总题数
+     * @return 下一题目 DTO，或 null
+     */
     private QuizQuestionDto loadNextQuestion(String sessionId, int totalQuestions) {
         List<QuizQuestionDto> questions = jdbcTemplate.query(
                 """
@@ -420,6 +529,12 @@ public class QuizService {
         return questions.isEmpty() ? null : questions.get(0);
     }
 
+    /**
+     * 查询会话中已作答题数。
+     *
+     * @param sessionId 会话 ID
+     * @return 已作答题数
+     */
     private int loadAnsweredCount(String sessionId) {
         Integer answered = jdbcTemplate.queryForObject(
                 "SELECT answered_questions FROM quiz_sessions WHERE id = ?",
@@ -429,6 +544,13 @@ public class QuizService {
         return answered == null ? 0 : answered;
     }
 
+    /**
+     * 加载词书下的所有词条。
+     *
+     * @param userId     用户 ID
+     * @param wordbookId 词书 ID
+     * @return 词条行列表
+     */
     private List<EntryRow> loadWordbookEntries(long userId, long wordbookId) {
         return jdbcTemplate.query(
                 """
@@ -447,6 +569,12 @@ public class QuizService {
         );
     }
 
+    /**
+     * 校验词书是否属于当前用户，不属于则抛出 ForbiddenException。
+     *
+     * @param userId     用户 ID
+     * @param wordbookId 词书 ID
+     */
     private void requireWordbook(long userId, long wordbookId) {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM wordbooks WHERE id = ? AND user_id = ?",
@@ -459,6 +587,12 @@ public class QuizService {
         }
     }
 
+    /**
+     * 将会话行数据映射为会话 DTO。
+     *
+     * @param row 会话行数据
+     * @return 会话 DTO
+     */
     private QuizSessionDto mapSession(SessionRow row) {
         return new QuizSessionDto(
                 row.id(),
@@ -471,6 +605,12 @@ public class QuizService {
         );
     }
 
+    /**
+     * 规范化音标字符串，为 null 时返回空字符串。
+     *
+     * @param phonetic 原始音标
+     * @return 规范化后的音标
+     */
     private String normalizePhonetic(String phonetic) {
         if (phonetic == null) {
             return "";
@@ -478,6 +618,13 @@ public class QuizService {
         return phonetic.trim();
     }
 
+    /**
+     * 词条行数据。
+     *
+     * @param id        词条 ID
+     * @param word      单词
+     * @param meaningCn 中文释义
+     */
     private record EntryRow(
             long id,
             String word,
@@ -485,6 +632,13 @@ public class QuizService {
     ) {
     }
 
+    /**
+     * 出题负载，包含题目提示、选项和正确答案。
+     *
+     * @param promptText   提示文本
+     * @param options      四个选项
+     * @param correctOption 正确选项
+     */
     private record AttemptPayload(
             String promptText,
             List<String> options,
@@ -492,6 +646,18 @@ public class QuizService {
     ) {
     }
 
+    /**
+     * 会话行数据。
+     *
+     * @param id               会话 ID
+     * @param userId           用户 ID
+     * @param wordbookId       词书 ID
+     * @param mode             斩词模式
+     * @param totalQuestions   总题数
+     * @param answeredQuestions 已答题数
+     * @param correctAnswers   正确题数
+     * @param status           会话状态
+     */
     private record SessionRow(
             String id,
             long userId,
@@ -504,6 +670,14 @@ public class QuizService {
     ) {
     }
 
+    /**
+     * 题目行数据。
+     *
+     * @param id                  题目 ID
+     * @param vocabularyEntryId   词条 ID
+     * @param correctOption      正确选项标签
+     * @param selectedOption      用户已选选项标签（未作答时为 null）
+     */
     private record AttemptRow(
             long id,
             long vocabularyEntryId,

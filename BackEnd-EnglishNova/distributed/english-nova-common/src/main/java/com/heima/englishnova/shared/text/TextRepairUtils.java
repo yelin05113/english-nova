@@ -3,6 +3,9 @@ package com.heima.englishnova.shared.text;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * 文本乱码修复工具，检测并修复 Windows-1252/ISO-8859-1 编码错误导致的 UTF-8 乱码。
+ */
 public final class TextRepairUtils {
 
     private static final Charset WINDOWS_1252 = Charset.forName("windows-1252");
@@ -11,6 +14,12 @@ public final class TextRepairUtils {
     private TextRepairUtils() {
     }
 
+    /**
+     * 检测字符串是否存在乱码，若存在则尝试从 Windows-1252/ISO-8859-1 还原为 UTF-8。
+     *
+     * @param value 原始字符串
+     * @return 修复后的字符串，若无需修复则返回原始值
+     */
     public static String repair(String value) {
         if (value == null || value.isBlank()) {
             return value;

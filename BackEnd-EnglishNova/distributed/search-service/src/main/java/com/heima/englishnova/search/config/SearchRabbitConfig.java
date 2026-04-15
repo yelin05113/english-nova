@@ -15,20 +15,43 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
+/**
+ * 搜索服务 RabbitMQ 拓扑配置类，声明搜索索引所需的 Exchange、Queue、Binding 及消息转换器。
+ */
 @Configuration
 @EnableConfigurationProperties(SearchRabbitConfig.SearchQueueProperties.class)
 public class SearchRabbitConfig {
 
+    /**
+     * 声明搜索服务使用的 Topic Exchange。
+     *
+     * @param properties 搜索队列配置属性
+     * @return Topic Exchange 实例
+     */
     @Bean
     public TopicExchange searchExchange(SearchQueueProperties properties) {
         return new TopicExchange(properties.exchange(), true, false);
     }
 
+    /**
+     * 声明搜索索引队列。
+     *
+     * @param properties 搜索队列配置属性
+     * @return Queue 实例
+     */
     @Bean
     public Queue searchIndexQueue(SearchQueueProperties properties) {
         return new Queue(properties.indexQueue(), true);
     }
 
+    /**
+     * 将搜索索引队列绑定到搜索 Exchange。
+     *
+     * @param searchIndexQueue 搜索索引队列
+     * @param searchExchange   搜索 Topic Exchange
+     * @param properties       搜索队列配置属性
+     * @return Binding 实例
+     */
     @Bean
     public Binding searchIndexBinding(
             Queue searchIndexQueue,
@@ -40,6 +63,11 @@ public class SearchRabbitConfig {
                 .with(properties.routingKey());
     }
 
+    /**
+     * 提供搜索服务消息转换器，配置允许反序列化的类名模式。
+     *
+     * @return MessageConverter 实例
+     */
     @Bean
     public MessageConverter searchMessageConverter() {
         SimpleMessageConverter converter = new SimpleMessageConverter();
@@ -51,6 +79,13 @@ public class SearchRabbitConfig {
         return converter;
     }
 
+    /**
+     * 提供搜索服务 RabbitMQ 监听器容器工厂。
+     *
+     * @param connectionFactory   RabbitMQ 连接工厂
+     * @param searchMessageConverter 搜索消息转换器
+     * @return SimpleRabbitListenerContainerFactory 实例
+     */
     @Bean
     public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
             ConnectionFactory connectionFactory,
@@ -62,6 +97,13 @@ public class SearchRabbitConfig {
         return factory;
     }
 
+    /**
+ * 搜索服务 RabbitMQ 队列配置属性，绑定前缀为 english-nova.search 的配置项。
+ *
+ * @param exchange    Exchange 名称
+ * @param indexQueue  索引队列名称
+ * @param routingKey  路由键
+     */
     @ConfigurationProperties(prefix = "english-nova.search")
     public record SearchQueueProperties(
             String exchange,
