@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nightfall.englishnova.quiz.mapper.QuizWordbookMapper">
+    <select id="listWordbooks" resultType="com.nightfall.englishnova.quiz.domain.vo.WordbookSummaryVo">
+        SELECT
+            w.id,
+            w.name,
+            w.platform,
+            w.word_count,
+            w.created_at,
+            COALESCE(SUM(CASE WHEN p.status = 'CLEARED' THEN 1 ELSE 0 END), 0) AS cleared_count,
+            COALESCE(SUM(CASE WHEN p.status &lt;&gt; 'CLEARED' THEN 1 ELSE 0 END), 0) AS pending_count
+        FROM wordbooks w
+        LEFT JOIN vocabulary_entries v ON v.wordbook_id = w.id
+        LEFT JOIN user_word_progress p ON p.vocabulary_entry_id = v.id AND p.user_id = w.user_id
+        WHERE w.user_id = #{userId}
+        GROUP BY w.id, w.name, w.platform, w.word_count, w.created_at
+        ORDER BY w.created_at DESC
+    </select>
+
+    <select id="countOwnedWordbook" resultType="int">
+        SELECT COUNT(*)
+        FROM wordbooks
+        WHERE id = #{wordbookId} AND user_id = #{userId}
+    </select>
+
+    <select id="loadProgress" resultType="com.nightfall.englishnova.quiz.domain.vo.WordbookProgressVo">
+        SELECT
+            COUNT(v.id) AS word_count,
+            COALESCE(SUM(CASE WHEN p.status = 'CLEARED' THEN 1 ELSE 0 END), 0) AS cleared_count,
+            COALESCE(SUM(CASE WHEN p.status = 'IN_PROGRESS' THEN 1 ELSE 0 END), 0) AS in_progress_count,
+            COALESCE(SUM(CASE WHEN p.status = 'NEW' THEN 1 ELSE 0 END), 0) AS pending_count
+        FROM vocabulary_entries v
+        LEFT JOIN user_word_progress p
+            ON p.vocabulary_entry_id = v.id AND p.user_id = #{userId}
+        WHERE v.user_id = #{userId} AND v.wordbook_id = #{wordbookId}
+    </select>
+</mapper>

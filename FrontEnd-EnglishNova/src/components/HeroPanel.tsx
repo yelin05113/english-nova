@@ -1,4 +1,6 @@
-import type { StudyAgenda, WordSearchResponse, WordbookSummary } from '../types/types'
+import type { WordSearchResponse } from '../api/modules/search'
+import type { StudyAgenda } from '../api/modules/study'
+import type { WordbookSummary } from '../api/modules/quiz'
 
 interface HeroPanelProps {
   wordbooks: WordbookSummary[]

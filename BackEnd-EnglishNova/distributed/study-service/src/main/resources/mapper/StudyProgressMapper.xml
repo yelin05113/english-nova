@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nightfall.englishnova.study.mapper.StudyProgressMapper">
+
+    <select id="loadProgress" resultType="com.nightfall.englishnova.study.domain.vo.ProgressVo">
+        SELECT
+            COUNT(v.id) AS total_words,
+            COALESCE(SUM(CASE WHEN p.status = 'CLEARED' THEN 1 ELSE 0 END), 0) AS cleared_words,
+            COALESCE(SUM(CASE WHEN p.status = 'IN_PROGRESS' THEN 1 ELSE 0 END), 0) AS in_progress_words,
+            COALESCE(SUM(CASE WHEN p.status = 'NEW' THEN 1 ELSE 0 END), 0) AS new_words,
+            COUNT(DISTINCT v.wordbook_id) AS wordbooks
+        FROM vocabulary_entries v
+        LEFT JOIN user_word_progress p
+            ON p.vocabulary_entry_id = v.id AND p.user_id = #{userId}
+        WHERE v.user_id = #{userId}
+    </select>
+
+    <select id="loadAccuracy" resultType="com.nightfall.englishnova.study.domain.vo.AccuracyVo">
+        SELECT COUNT(*) AS answered_questions,
+               COALESCE(SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END), 0) AS correct_answers
+        FROM quiz_attempts
+        WHERE user_id = #{userId}
+        LIMIT 1
+    </select>
+</mapper>

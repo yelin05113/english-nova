@@ -1,4 +1,4 @@
-import type { SearchHit } from '../types/types'
+import type { SearchHit } from '../api/modules/search'
 
 interface SearchCardProps {
   item: SearchHit

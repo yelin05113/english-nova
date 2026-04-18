@@ -1,4 +1,4 @@
-import type { ImportPlatform } from './types/types'
+import type { ImportPlatform } from './api/modules/imports'
 
 export const TOKEN_KEY = 'english-nova.jwt'
 export const DEFAULT_IMPORT_PLATFORM: ImportPlatform = 'ANKI'

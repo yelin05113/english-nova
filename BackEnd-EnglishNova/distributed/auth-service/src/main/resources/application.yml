@@ -4,14 +4,14 @@ spring:
   config:
     import: optional:nacos:${spring.application.name}.yaml
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:english_nova}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
-    username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:root}
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:4407}/${MYSQL_DATABASE:english_nova}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USERNAME:english_nova}
+    password: ${MYSQL_PASSWORD:english_nova}
   cloud:
     nacos:
       server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
-      username: ${NACOS_USERNAME:}
-      password: ${NACOS_PASSWORD:}
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:nacos}
       discovery:
         namespace: ${NACOS_NAMESPACE:public}
         group: ${NACOS_GROUP:DEFAULT_GROUP}
@@ -36,3 +36,8 @@ english-nova:
   jwt:
     secret: ${JWT_SECRET:english-nova-local-jwt-secret-must-be-32-char}
     expiration-hours: ${JWT_EXPIRATION_HOURS:72}
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true

@@ -1,4 +1,4 @@
-import type { ImportPlatform } from '../types/types'
+import type { ImportPlatform } from '../api/modules/imports'
 import { useAppStateContext } from '../context/AppStateContext'
 
 export function ImportsView() {

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nightfall.englishnova.quiz.mapper.QuizUserWordProgressMapper">
+    <update id="updateAfterAnswer">
+        UPDATE user_word_progress
+        SET correct_count = correct_count + #{correctIncrement},
+            wrong_count = wrong_count + #{wrongIncrement},
+            status = #{status},
+            last_answered_at = CURRENT_TIMESTAMP
+        WHERE user_id = #{userId} AND vocabulary_entry_id = #{entryId}
+    </update>
+</mapper>

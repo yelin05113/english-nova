@@ -1,11 +1,9 @@
-import { Navigate, Outlet } from 'react-router'
+import { Outlet } from 'react-router'
 import { useAppStateContext } from '../context/AppStateContext'
 import { Topbar } from '../components/Topbar'
 
 export function AppLayout() {
-  const { user, error, message } = useAppStateContext()
-
-  if (!user) return <Navigate to="/auth" replace />
+  const { error, message } = useAppStateContext()
 
   return (
     <div className="app-shell">

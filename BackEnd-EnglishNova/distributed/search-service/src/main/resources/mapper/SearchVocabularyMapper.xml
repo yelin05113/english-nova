@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nightfall.englishnova.search.mapper.SearchVocabularyMapper">
+
+    <sql id="documentColumns">
+        id AS entry_id,
+        user_id AS owner_user_id,
+        visibility,
+        wordbook_id,
+        word,
+        phonetic,
+        meaning_cn,
+        example_sentence,
+        category,
+        import_source
+    </sql>
+
+    <update id="updateAudioUrl">
+        UPDATE vocabulary_entries
+        SET audio_url = #{audioUrl}
+        WHERE id = #{entryId}
+    </update>
+
+    <select id="listByUserAndWordbook" resultType="com.nightfall.englishnova.search.domain.vo.SearchDocumentVo">
+        SELECT <include refid="documentColumns"/>
+        FROM vocabulary_entries
+        WHERE user_id = #{userId} AND wordbook_id = #{wordbookId}
+    </select>
+
+    <select id="findExistingPublicEntryId" resultType="long">
+        SELECT id
+        FROM vocabulary_entries
+        WHERE user_id = #{userId} AND visibility = #{visibility} AND LOWER(word) = LOWER(#{word})
+        ORDER BY id ASC
+        LIMIT 1
+    </select>
+
+    <insert id="insertPublicEntry" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO vocabulary_entries(
+            user_id, wordbook_id, word, phonetic, meaning_cn, example_sentence, category,
+            difficulty, visibility, audio_url, import_source, created_at
+        )
+        VALUES (
+            #{userId}, #{wordbookId}, #{word}, #{phonetic}, #{meaningCn}, #{exampleSentence}, #{category},
+            #{difficulty}, #{visibility}, #{audioUrl}, #{importSource}, CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <update id="updatePublicEntry">
+        UPDATE vocabulary_entries
+        SET word = #{word},
+            phonetic = #{phonetic},
+            meaning_cn = #{meaningCn},
+            example_sentence = #{exampleSentence},
+            category = #{category},
+            difficulty = #{difficulty},
+            audio_url = #{audioUrl},
+            import_source = #{importSource}
+        WHERE id = #{entryId}
+    </update>
+
+    <select id="findDocumentById" resultType="com.nightfall.englishnova.search.domain.vo.SearchDocumentVo">
+        SELECT <include refid="documentColumns"/>
+        FROM vocabulary_entries
+        WHERE id = #{entryId}
+    </select>
+
+    <select id="findPublicEntryId" resultType="long">
+        SELECT id
+        FROM vocabulary_entries
+        WHERE user_id = #{userId} AND wordbook_id = #{wordbookId} AND LOWER(word) = LOWER(#{word})
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <select id="loadDetailRow" resultType="com.nightfall.englishnova.search.domain.vo.DetailVo">
+        SELECT
+            v.id AS entry_id,
+            v.user_id AS owner_user_id,
+            v.wordbook_id,
+            w.name AS wordbook_name,
+            v.word,
+            v.phonetic,
+            v.meaning_cn,
+            v.example_sentence,
+            v.category,
+            v.difficulty,
+            v.visibility,
+            v.audio_url,
+            v.import_source,
+            w.source_name
+        FROM vocabulary_entries v
+        JOIN wordbooks w ON w.id = v.wordbook_id
+        WHERE v.id = #{entryId}
+        LIMIT 1
+    </select>
+
+    <select id="loadAllRows" resultType="com.nightfall.englishnova.search.domain.vo.SearchDocumentVo">
+        SELECT <include refid="documentColumns"/>
+        FROM vocabulary_entries
+    </select>
+
+    <select id="loadVocabularyCleanupRows" resultType="com.nightfall.englishnova.search.domain.vo.VocabularyCleanupVo">
+        SELECT id, meaning_cn, example_sentence, category
+        FROM vocabulary_entries
+    </select>
+
+    <update id="updateVocabularyCleanup">
+        UPDATE vocabulary_entries
+        SET meaning_cn = #{meaningCn},
+            example_sentence = #{exampleSentence},
+            category = #{category}
+        WHERE id = #{id}
+    </update>
+</mapper>

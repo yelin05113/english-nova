@@ -1,9 +1,7 @@
-import { Navigate } from 'react-router'
 import { useAppStateContext } from '../context/AppStateContext'
 
 export function AuthView() {
   const {
-    user,
     authTab,
     setAuthTab,
     account,
@@ -21,8 +19,6 @@ export function AuthView() {
     handleLogin,
     handleRegister,
   } = useAppStateContext()
-
-  if (user) return <Navigate to="/" replace />
 
   return (
     <div className="auth-page">

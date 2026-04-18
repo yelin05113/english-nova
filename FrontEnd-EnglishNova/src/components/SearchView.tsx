@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { SearchCard } from './SearchCard'
 import { WordDetailModal } from './WordDetailModal'
 import { useAppStateContext } from '../context/AppStateContext'
-import type { SearchHit, WordDetail } from '../types/types'
+import type { SearchHit, WordDetail } from '../api/modules/search'
 
 export function SearchView() {
   const {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStateContext } from '../context/AppStateContext'
-import type { QuizMode } from '../types/types'
+import type { QuizMode } from '../api/modules/quiz'
 
 interface OptionState {
   option: string
