@@ -165,7 +165,7 @@ public class ImportTaskServiceImpl implements ImportTaskService {
                 try {
                     Files.deleteIfExists(tempFile);
                 } catch (IOException ignored) {
-                    // Best effort cleanup.
+                    // 尽力清理临时文件，不因清理失败影响主流程。
                 }
             }
         }

@@ -5,7 +5,7 @@ import com.nightfall.englishnova.shared.dto.LoginRequest;
 import com.nightfall.englishnova.shared.dto.RegisterRequest;
 
 /**
- * Authentication business service.
+ * 认证业务服务接口。
  */
 public interface AuthService {
 
