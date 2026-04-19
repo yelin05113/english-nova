@@ -12,6 +12,13 @@
         meaning_cn,
         example_sentence,
         category,
+        definition_en,
+        tags,
+        bnc_rank,
+        frq_rank,
+        wordfreq_zipf,
+        exchange_info,
+        data_quality,
         import_source
     </sql>
 
@@ -38,10 +45,12 @@
     <insert id="insertPublicEntry" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO vocabulary_entries(
             user_id, wordbook_id, word, phonetic, meaning_cn, example_sentence, category,
+            definition_en, tags, bnc_rank, frq_rank, wordfreq_zipf, exchange_info, data_quality,
             difficulty, visibility, audio_url, import_source, created_at
         )
         VALUES (
             #{userId}, #{wordbookId}, #{word}, #{phonetic}, #{meaningCn}, #{exampleSentence}, #{category},
+            #{definitionEn}, #{tags}, #{bncRank}, #{frqRank}, #{wordfreqZipf}, #{exchangeInfo}, #{dataQuality},
             #{difficulty}, #{visibility}, #{audioUrl}, #{importSource}, CURRENT_TIMESTAMP
         )
     </insert>
@@ -53,6 +62,13 @@
             meaning_cn = #{meaningCn},
             example_sentence = #{exampleSentence},
             category = #{category},
+            definition_en = #{definitionEn},
+            tags = #{tags},
+            bnc_rank = #{bncRank},
+            frq_rank = #{frqRank},
+            wordfreq_zipf = #{wordfreqZipf},
+            exchange_info = #{exchangeInfo},
+            data_quality = #{dataQuality},
             difficulty = #{difficulty},
             audio_url = #{audioUrl},
             import_source = #{importSource}
@@ -84,6 +100,13 @@
             v.meaning_cn,
             v.example_sentence,
             v.category,
+            v.definition_en,
+            v.tags,
+            v.bnc_rank,
+            v.frq_rank,
+            v.wordfreq_zipf,
+            v.exchange_info,
+            v.data_quality,
             v.difficulty,
             v.visibility,
             v.audio_url,
@@ -101,15 +124,17 @@
     </select>
 
     <select id="loadVocabularyCleanupRows" resultType="com.nightfall.englishnova.search.domain.vo.VocabularyCleanupVo">
-        SELECT id, meaning_cn, example_sentence, category
+        SELECT id, word, import_source, phonetic, meaning_cn, example_sentence, category, definition_en
         FROM vocabulary_entries
     </select>
 
     <update id="updateVocabularyCleanup">
         UPDATE vocabulary_entries
-        SET meaning_cn = #{meaningCn},
+        SET phonetic = #{phonetic},
+            meaning_cn = #{meaningCn},
             example_sentence = #{exampleSentence},
-            category = #{category}
+            category = #{category},
+            definition_en = #{definitionEn}
         WHERE id = #{id}
     </update>
 </mapper>

@@ -1,16 +1,17 @@
 package com.nightfall.englishnova.importservice.service.impl;
 
 import com.nightfall.englishnova.importservice.config.EnglishNovaProperties;
+import com.nightfall.englishnova.importservice.domain.po.VocabularyEntryPo;
+import com.nightfall.englishnova.importservice.domain.po.WordbookPo;
+import com.nightfall.englishnova.importservice.domain.vo.ImportTaskVo;
 import com.nightfall.englishnova.importservice.importer.ImportedVocabularyRecord;
 import com.nightfall.englishnova.importservice.importer.WordImportAdapter;
 import com.nightfall.englishnova.importservice.importer.WordImportDispatcher;
 import com.nightfall.englishnova.importservice.mapper.ImportTaskMapper;
+import com.nightfall.englishnova.importservice.mapper.UserMapper;
 import com.nightfall.englishnova.importservice.mapper.UserWordProgressMapper;
 import com.nightfall.englishnova.importservice.mapper.VocabularyEntryMapper;
 import com.nightfall.englishnova.importservice.mapper.WordbookMapper;
-import com.nightfall.englishnova.importservice.domain.po.VocabularyEntryPo;
-import com.nightfall.englishnova.importservice.domain.po.WordbookPo;
-import com.nightfall.englishnova.importservice.domain.vo.ImportTaskVo;
 import com.nightfall.englishnova.importservice.service.ImportTaskService;
 import com.nightfall.englishnova.shared.auth.CurrentUser;
 import com.nightfall.englishnova.shared.dto.ImportPresetDto;
@@ -21,6 +22,7 @@ import com.nightfall.englishnova.shared.enums.VocabularyVisibility;
 import com.nightfall.englishnova.shared.enums.WordImportPlatform;
 import com.nightfall.englishnova.shared.events.WordbookImportedEvent;
 import com.nightfall.englishnova.shared.exception.NotFoundException;
+import com.nightfall.englishnova.shared.text.PhoneticNormalizer;
 import com.nightfall.englishnova.shared.exception.UnauthorizedException;
 import com.nightfall.englishnova.shared.text.TextRepairUtils;
 import com.nightfall.englishnova.shared.text.UserFacingTextNormalizer;
@@ -51,6 +53,7 @@ public class ImportTaskServiceImpl implements ImportTaskService {
     private final WordImportDispatcher dispatcher;
     private final EnglishNovaProperties properties;
     private final ImportTaskMapper importTaskMapper;
+    private final UserMapper userMapper;
     private final WordbookMapper wordbookMapper;
     private final VocabularyEntryMapper vocabularyEntryMapper;
     private final UserWordProgressMapper userWordProgressMapper;
@@ -60,6 +63,7 @@ public class ImportTaskServiceImpl implements ImportTaskService {
             WordImportDispatcher dispatcher,
             EnglishNovaProperties properties,
             ImportTaskMapper importTaskMapper,
+            UserMapper userMapper,
             WordbookMapper wordbookMapper,
             VocabularyEntryMapper vocabularyEntryMapper,
             UserWordProgressMapper userWordProgressMapper,
@@ -68,6 +72,7 @@ public class ImportTaskServiceImpl implements ImportTaskService {
         this.dispatcher = dispatcher;
         this.properties = properties;
         this.importTaskMapper = importTaskMapper;
+        this.userMapper = userMapper;
         this.wordbookMapper = wordbookMapper;
         this.vocabularyEntryMapper = vocabularyEntryMapper;
         this.userWordProgressMapper = userWordProgressMapper;
@@ -84,6 +89,7 @@ public class ImportTaskServiceImpl implements ImportTaskService {
 
     @Override
     public List<ImportTaskDto> listTasks(CurrentUser user) {
+        requireActiveUser(user.id());
         return importTaskMapper.listByUser(user.id()).stream()
                 .map(this::mapTask)
                 .toList();
@@ -92,6 +98,7 @@ public class ImportTaskServiceImpl implements ImportTaskService {
     @Override
     @Transactional
     public ImportTaskDto createTask(CurrentUser user, ImportTaskRequest request) {
+        requireActiveUser(user.id());
         requireAdapter(request.platform());
         ImportTaskDto task = persistTask(
                 user.id(),
@@ -114,6 +121,8 @@ public class ImportTaskServiceImpl implements ImportTaskService {
         if (user == null) {
             throw new UnauthorizedException("请先登录");
         }
+        requireActiveUser(user.id());
+
         WordImportAdapter adapter = requireAdapter(platform);
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("导入文件不能为空");
@@ -165,7 +174,7 @@ public class ImportTaskServiceImpl implements ImportTaskService {
                 try {
                     Files.deleteIfExists(tempFile);
                 } catch (IOException ignored) {
-                    // 尽力清理临时文件，不因清理失败影响主流程。
+                    // Ignore temp file cleanup failures.
                 }
             }
         }
@@ -177,6 +186,12 @@ public class ImportTaskServiceImpl implements ImportTaskService {
             throw new NotFoundException("不支持的导入平台");
         }
         return adapter;
+    }
+
+    private void requireActiveUser(long userId) {
+        if (userMapper.countById(userId) == 0) {
+            throw new UnauthorizedException("登录已失效，请重新登录");
+        }
     }
 
     private long createWordbook(long userId, String name, WordImportPlatform platform, String sourceName, int wordCount) {
@@ -217,7 +232,7 @@ public class ImportTaskServiceImpl implements ImportTaskService {
         row.setUserId(userId);
         row.setWordbookId(wordbookId);
         row.setWord(truncate(TextRepairUtils.repair(record.word()), 120));
-        row.setPhonetic(truncate(TextRepairUtils.repair(defaultText(record.phonetic(), "-")), 120));
+        row.setPhonetic(truncate(PhoneticNormalizer.normalize(defaultText(record.phonetic(), "-")), 120));
         row.setMeaningCn(truncate(UserFacingTextNormalizer.normalizeMeaningText(defaultText(record.meaning(), "导入释义")), 255));
         row.setExampleSentence(truncate(UserFacingTextNormalizer.normalizeDisplayText(defaultText(record.exampleSentence(), record.meaning())), 255));
         row.setCategory(truncate(UserFacingTextNormalizer.normalizeMeaningText(defaultText(record.category(), "Anki 导入")), 120));
@@ -292,5 +307,4 @@ public class ImportTaskServiceImpl implements ImportTaskService {
                 row.getQueueName()
         );
     }
-
 }

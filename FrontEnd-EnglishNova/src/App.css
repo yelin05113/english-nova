@@ -350,6 +350,10 @@
   line-height: 1.5;
 }
 
+.multiline-text {
+  white-space: pre-line;
+}
+
 .search-box {
   position: relative;
 }
@@ -408,6 +412,52 @@
 .phonetic-text {
   font-family: 'Segoe UI Symbol', Cambria, 'Times New Roman', serif;
   letter-spacing: 0.02em;
+}
+
+.detail-title-block {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.panel-head.detail-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 16px;
+}
+
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.detail-phonetic {
+  color: var(--muted);
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.detail-close-button {
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.detail-meaning-card {
+  margin-bottom: 14px;
+}
+
+.detail-actions {
+  margin-top: 16px;
+}
+
+.detail-action-button {
+  width: 100%;
+  display: block;
 }
 
 .detail-grid {

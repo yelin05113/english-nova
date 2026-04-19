@@ -26,7 +26,7 @@ export function AuthView() {
         <span className="logo">1103</span>
         <div>
           <p className="eyebrow">English Nova</p>
-          <h1>1103 单词控制台</h1>
+          <h1>单词学习控制台</h1>
         </div>
       </div>
 
@@ -55,7 +55,12 @@ export function AuthView() {
             <div className="form">
               <label>
                 <span>用户名或邮箱</span>
-                <input value={account} onChange={(e) => setAccount(e.target.value)} />
+                <input
+                  value={account}
+                  onChange={(e) => setAccount(e.target.value)}
+                  placeholder="请输入用户名或邮箱"
+                  autoComplete="username"
+                />
               </label>
               <label>
                 <span>密码</span>
@@ -64,6 +69,8 @@ export function AuthView() {
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && void handleLogin()}
+                  placeholder="请输入密码"
+                  autoComplete="current-password"
                 />
               </label>
               <button type="button" className="primary" onClick={() => void handleLogin()}>
@@ -77,6 +84,8 @@ export function AuthView() {
                 <input
                   value={registerUsername}
                   onChange={(e) => setRegisterUsername(e.target.value)}
+                  placeholder="请输入用户名"
+                  autoComplete="username"
                 />
               </label>
               <label>
@@ -85,6 +94,8 @@ export function AuthView() {
                   type="email"
                   value={registerEmail}
                   onChange={(e) => setRegisterEmail(e.target.value)}
+                  placeholder="请输入邮箱"
+                  autoComplete="email"
                 />
               </label>
               <label>
@@ -93,6 +104,8 @@ export function AuthView() {
                   type="password"
                   value={registerPassword}
                   onChange={(e) => setRegisterPassword(e.target.value)}
+                  placeholder="请设置密码"
+                  autoComplete="new-password"
                 />
               </label>
               <button type="button" className="primary" onClick={() => void handleRegister()}>
@@ -104,12 +117,14 @@ export function AuthView() {
 
         {overview && (
           <article className="panel auth-overview">
-            <p className="eyebrow">平台功能</p>
+            <p className="eyebrow">平台能力</p>
             <h2 className="auth-product-name">{overview.productName}</h2>
             <p>{overview.theme}</p>
             <div className="auth-platforms">
               {overview.supportedPlatforms.map((p) => (
-                <span key={p} className="badge">{p}</span>
+                <span key={p} className="badge">
+                  {p}
+                </span>
               ))}
             </div>
           </article>

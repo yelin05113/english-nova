@@ -2,11 +2,13 @@ package com.nightfall.englishnova.search;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 搜索服务启动类。提供 Elasticsearch 全文检索与公共词库同步的启动入口。
  */
 @SpringBootApplication(scanBasePackages = "com.nightfall.englishnova")
+@EnableScheduling
 public class SearchServiceApplication {
 
     /**

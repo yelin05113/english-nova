@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import type { SearchHit, WordDetail } from '../api/modules/search'
+import { useAppStateContext } from '../context/AppStateContext'
 import { SearchCard } from './SearchCard'
 import { WordDetailModal } from './WordDetailModal'
-import { useAppStateContext } from '../context/AppStateContext'
-import type { SearchHit, WordDetail } from '../api/modules/search'
 
 export function SearchView() {
   const {
@@ -14,10 +14,6 @@ export function SearchView() {
     getWordDetail,
   } = useAppStateContext()
 
-  const onSearchQueryChange = setSearchQuery
-  const suggestions = searchSuggestions
-  const onPickSuggestion = pickSearchSuggestion
-  const onFetchWordDetail = getWordDetail
   const [selectedDetail, setSelectedDetail] = useState<WordDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -48,7 +44,7 @@ export function SearchView() {
     setShowSuggestions(false)
     setDetailLoading(true)
     try {
-      const detail = await onFetchWordDetail(item.entryId)
+      const detail = await getWordDetail(item.entryId)
       setSelectedDetail(detail)
       playAudio(detail)
     } finally {
@@ -97,7 +93,7 @@ export function SearchView() {
           <input
             value={searchQuery}
             onChange={(event) => {
-              onSearchQueryChange(event.target.value)
+              setSearchQuery(event.target.value)
               setShowSuggestions(true)
             }}
             onFocus={() => {
@@ -111,39 +107,29 @@ export function SearchView() {
               }
             }}
           />
-          {showSuggestions && searchQuery.trim() && suggestions.length > 0 && (
+          {showSuggestions && searchQuery.trim() && searchSuggestions.length > 0 && (
             <div className="suggestion-list">
-              {suggestions.map((item) => (
+              {searchSuggestions.map((item) => (
                 <button
-                  key={`${item.visibility}-${item.entryId}`}
+                  key={item.entryId}
                   type="button"
                   className="suggestion-item"
                   onClick={() => {
                     setShowSuggestions(false)
-                    onPickSuggestion(item.word)
+                    pickSearchSuggestion(item.word)
                   }}
                 >
                   <strong>{item.word}</strong>
-                  <span>{item.visibility === 'PRIVATE' ? '我的词书' : '公共词库'}</span>
                   <small>匹配 {item.matchPercent}%</small>
                 </button>
               ))}
             </div>
           )}
         </label>
-        <div className="split">
-          <div className="list">
-            <h4>公共词库</h4>
-            {searchResult.publicHits.map((item) => (
-              <SearchCard key={`p-${item.entryId}`} item={item} onOpen={openDetail} />
-            ))}
-          </div>
-          <div className="list">
-            <h4>我的词库</h4>
-            {searchResult.myHits.map((item) => (
-              <SearchCard key={`m-${item.entryId}`} item={item} onOpen={openDetail} />
-            ))}
-          </div>
+        <div className="list">
+          {searchResult.hits.map((item) => (
+            <SearchCard key={item.entryId} item={item} onOpen={openDetail} />
+          ))}
         </div>
       </div>
 

@@ -4,6 +4,8 @@ import com.nightfall.englishnova.search.service.SearchCatalogService;
 import com.nightfall.englishnova.shared.auth.CurrentUser;
 import com.nightfall.englishnova.shared.auth.RequestUserExtractor;
 import com.nightfall.englishnova.shared.common.ApiResponse;
+import com.nightfall.englishnova.shared.dto.PublicCatalogImportJobDto;
+import com.nightfall.englishnova.shared.dto.PublicCatalogImportJobRequest;
 import com.nightfall.englishnova.shared.dto.PublicCatalogImportRequest;
 import com.nightfall.englishnova.shared.dto.PublicCatalogImportResultDto;
 import com.nightfall.englishnova.shared.dto.SearchSuggestionDto;
@@ -48,10 +50,11 @@ public class SearchController {
     @GetMapping("/words")
     public ApiResponse<WordSearchResponseDto> search(
             @RequestParam(defaultValue = "") String q,
+            @RequestParam(required = false) Long wordbookId,
             HttpServletRequest request
     ) {
         CurrentUser user = RequestUserExtractor.optional(request);
-        return ApiResponse.success(searchCatalogService.searchVocabulary(q, user));
+        return ApiResponse.success(searchCatalogService.searchVocabulary(q, user, wordbookId));
     }
 
     /**
@@ -64,10 +67,11 @@ public class SearchController {
     @GetMapping("/suggestions")
     public ApiResponse<List<SearchSuggestionDto>> suggestions(
             @RequestParam(defaultValue = "") String q,
+            @RequestParam(required = false) Long wordbookId,
             HttpServletRequest request
     ) {
         CurrentUser user = RequestUserExtractor.optional(request);
-        return ApiResponse.success(searchCatalogService.searchSuggestions(q, user));
+        return ApiResponse.success(searchCatalogService.searchSuggestions(q, user, wordbookId));
     }
 
     /**
@@ -100,5 +104,41 @@ public class SearchController {
     ) {
         RequestUserExtractor.require(servletRequest);
         return ApiResponse.success(searchCatalogService.importPublicCatalog(request));
+    }
+
+    @PostMapping("/public-catalog/import-high-frequency")
+    public ApiResponse<PublicCatalogImportJobDto> importHighFrequencyPublicCatalog(
+            @RequestBody(required = false) PublicCatalogImportJobRequest request,
+            HttpServletRequest servletRequest
+    ) {
+        CurrentUser user = RequestUserExtractor.require(servletRequest);
+        return ApiResponse.success(searchCatalogService.createHighFrequencyPublicCatalogJob(request, user));
+    }
+
+    @GetMapping("/public-catalog/import-jobs/{jobId}")
+    public ApiResponse<PublicCatalogImportJobDto> publicCatalogImportJob(
+            @PathVariable long jobId,
+            HttpServletRequest servletRequest
+    ) {
+        RequestUserExtractor.require(servletRequest);
+        return ApiResponse.success(searchCatalogService.getPublicCatalogImportJob(jobId));
+    }
+
+    @PostMapping("/public-catalog/import-jobs/{jobId}/retry-failed")
+    public ApiResponse<PublicCatalogImportJobDto> retryPublicCatalogImportJob(
+            @PathVariable long jobId,
+            HttpServletRequest servletRequest
+    ) {
+        RequestUserExtractor.require(servletRequest);
+        return ApiResponse.success(searchCatalogService.retryFailedPublicCatalogImportJob(jobId));
+    }
+
+    @PostMapping("/public-catalog/import-jobs/{jobId}/cancel")
+    public ApiResponse<PublicCatalogImportJobDto> cancelPublicCatalogImportJob(
+            @PathVariable long jobId,
+            HttpServletRequest servletRequest
+    ) {
+        RequestUserExtractor.require(servletRequest);
+        return ApiResponse.success(searchCatalogService.cancelPublicCatalogImportJob(jobId));
     }
 }

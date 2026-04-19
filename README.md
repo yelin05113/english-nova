@@ -148,10 +148,16 @@ Services in the stack:
 - rabbitmq: RabbitMQ 4.1 with management UI
 - elasticsearch: Elasticsearch 8.19 single-node
 
-Start everything with:
+Start the regular local stack with:
 
 ```bash
 docker compose --env-file .env.docker up --build -d
+```
+
+Run the one-time initializer only when you need to bootstrap or reset local data:
+
+```bash
+docker compose --env-file .env.docker --profile init up seeder
 ```
 
 Default exposed ports:
@@ -175,20 +181,28 @@ Stop everything with:
 docker compose --env-file .env.docker down
 ```
 
+The `seeder` container is now an init-only tool:
+
+- it publishes Nacos configs
+- it seeds MySQL only when the schema is missing
+- it skips MySQL reseeding when the database already contains the `users` table
+- set `FORCE_SEED_MYSQL=true` if you intentionally want to rebuild the database from the seed SQL files
+
 ## Suggested Next Steps
 
 1. Adjust `./.env.docker` if you want non-default ports or credentials.
 2. Run `docker compose --env-file .env.docker up --build -d`.
-3. Confirm service health at:
+3. If this is the first local bootstrap, run `docker compose --env-file .env.docker --profile init up seeder`.
+4. Confirm service health at:
    - `http://localhost:8080/actuator/health`
    - `http://localhost:8081/actuator/health`
    - `http://localhost:8082/actuator/health`
    - `http://localhost:8083/actuator/health`
    - `http://localhost:8084/actuator/health`
-4. Confirm Nacos console at `http://localhost:8848/nacos`.
-5. Confirm frontend at `http://localhost:3000`.
-6. Extend the seed schema into business-grade tables.
-7. Finish replacing remaining frontend mock content with live API data.
+5. Confirm Nacos console at `http://localhost:8848/nacos`.
+6. Confirm frontend at `http://localhost:3000`.
+7. Extend the seed schema into business-grade tables.
+8. Finish replacing remaining frontend mock content with live API data.
 
 ## Validation
 

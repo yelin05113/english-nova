@@ -27,6 +27,13 @@ public interface SearchVocabularyMapper {
             @Param("meaningCn") String meaningCn,
             @Param("exampleSentence") String exampleSentence,
             @Param("category") String category,
+            @Param("definitionEn") String definitionEn,
+            @Param("tags") String tags,
+            @Param("bncRank") Integer bncRank,
+            @Param("frqRank") Integer frqRank,
+            @Param("wordfreqZipf") Double wordfreqZipf,
+            @Param("exchangeInfo") String exchangeInfo,
+            @Param("dataQuality") String dataQuality,
             @Param("difficulty") int difficulty,
             @Param("audioUrl") String audioUrl,
             @Param("importSource") String importSource
@@ -44,8 +51,10 @@ public interface SearchVocabularyMapper {
 
     void updateVocabularyCleanup(
             @Param("id") long id,
+            @Param("phonetic") String phonetic,
             @Param("meaningCn") String meaningCn,
             @Param("exampleSentence") String exampleSentence,
-            @Param("category") String category
+            @Param("category") String category,
+            @Param("definitionEn") String definitionEn
     );
 }
