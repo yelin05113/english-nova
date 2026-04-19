@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nightfall.englishnova.search.mapper.SearchWordbookMapper">
+
+    <select id="findPublicWordbookId" resultType="long">
+        SELECT id
+        FROM wordbooks
+        WHERE user_id = #{userId} AND source_name = #{sourceName}
+        ORDER BY id ASC
+        LIMIT 1
+    </select>
+
+    <insert id="insertPublicWordbook" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wordbooks(user_id, name, platform, source_name, import_source, word_count, created_at)
+        VALUES (#{userId}, #{name}, #{platform}, #{sourceName}, #{importSource}, 0, CURRENT_TIMESTAMP)
+    </insert>
+
+    <update id="syncWordbookCount">
+        UPDATE wordbooks
+        SET word_count = (
+            SELECT COUNT(*)
+            FROM vocabulary_entries
+            WHERE wordbook_id = #{wordbookId}
+        )
+        WHERE id = #{wordbookId}
+    </update>
+
+    <select id="loadWordbookCleanupRows" resultType="com.nightfall.englishnova.search.domain.vo.WordbookCleanupVo">
+        SELECT id, name, source_name
+        FROM wordbooks
+    </select>
+
+    <update id="updateWordbookCleanup">
+        UPDATE wordbooks
+        SET name = #{name}, source_name = #{sourceName}
+        WHERE id = #{id}
+    </update>
+</mapper>

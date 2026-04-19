@@ -1,32 +1,27 @@
-import { startTransition, useDeferredValue, useEffect, useState } from 'react'
-import { apiFetch } from '../api/client'
+import { useDeferredValue, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
+import type { ApiAuthOptions } from '../api/client'
+import { authApi, type AuthUser } from '../api/modules/auth'
+import { importApi, type ImportPlatform, type ImportPreset, type ImportTask } from '../api/modules/imports'
+import {
+  quizApi,
+  type QuizAnswerResult,
+  type QuizMode,
+  type QuizSessionState,
+  type VocabularyEntry,
+  type WordbookProgress,
+  type WordbookSummary,
+} from '../api/modules/quiz'
+import { searchApi, type SearchSuggestion, type WordSearchResponse } from '../api/modules/search'
+import { studyApi, type StudyAgenda, type StudyProgress } from '../api/modules/study'
+import { systemApi, type SystemOverview } from '../api/modules/system'
 import { DEFAULT_IMPORT_PLATFORM, TOKEN_KEY } from '../constants'
-import type {
-  AuthTokenResponse,
-  AuthUser,
-  ImportPlatform,
-  ImportPreset,
-  ImportTask,
-  QuizAnswerResult,
-  QuizMode,
-  QuizSessionState,
-  SearchSuggestion,
-  StudyAgenda,
-  StudyProgress,
-  SystemOverview,
-  ViewKey,
-  WordDetail,
-  VocabularyEntry,
-  WordSearchResponse,
-  WordbookProgress,
-  WordbookSummary,
-} from '../types'
 
 export function useAppState() {
+  const navigate = useNavigate()
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) ?? '')
   const [user, setUser] = useState<AuthUser | null>(null)
 
-  const [view, setView] = useState<ViewKey>('auth')
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login')
 
   const [overview, setOverview] = useState<SystemOverview | null>(null)
@@ -58,15 +53,15 @@ export function useAppState() {
   const [selectedPlatform, setSelectedPlatform] = useState<ImportPlatform>(DEFAULT_IMPORT_PLATFORM)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  function api<T>(path: string, init?: RequestInit, requireAuth = false, authToken = token) {
-    return apiFetch<T>(path, init, { requireAuth, token: authToken, onUnauthorized: clearAuth })
+  function authOptions(authToken = token): ApiAuthOptions {
+    return { token: authToken, onUnauthorized: clearAuth }
   }
 
   function clearAuth() {
     localStorage.removeItem(TOKEN_KEY)
     setToken('')
     setUser(null)
-    setView('auth')
+    navigate('/auth')
     setAgenda(null)
     setProgress(null)
     setPresets([])
@@ -80,18 +75,19 @@ export function useAppState() {
     setSearchSuggestions([])
   }
 
-  async function loadPrivateData(nextView?: ViewKey, authToken = token) {
+  async function loadPrivateData(nextPath?: string, authToken = token) {
     if (!authToken) return
     setLoading(true)
     try {
+      const options = authOptions(authToken)
       const [me, system, study, summary, presetData, taskData, wordbookData] = await Promise.all([
-        api<AuthUser>('/api/auth/me', undefined, true, authToken),
-        api<SystemOverview>('/api/system/overview'),
-        api<StudyAgenda>('/api/study/agenda', undefined, true, authToken),
-        api<StudyProgress>('/api/study/progress', undefined, true, authToken),
-        api<ImportPreset[]>('/api/imports/presets', undefined, true, authToken),
-        api<ImportTask[]>('/api/imports/tasks', undefined, true, authToken),
-        api<WordbookSummary[]>('/api/wordbooks', undefined, true, authToken),
+        authApi.me(options),
+        systemApi.getOverview(),
+        studyApi.getAgenda(options),
+        studyApi.getProgress(options),
+        importApi.listPresets(options),
+        importApi.listTasks(options),
+        quizApi.listWordbooks(options),
       ])
       setUser(me)
       setOverview(system)
@@ -106,8 +102,11 @@ export function useAppState() {
       setSelectedWordbookId((current) =>
         current && wordbookData.some((item) => item.id === current) ? current : (wordbookData[0]?.id ?? null),
       )
-      if (nextView) setView(nextView)
-      else if (!user) setView(wordbookData.length ? 'library' : 'imports')
+      if (nextPath) {
+        navigate(nextPath)
+      } else if (!user) {
+        navigate(wordbookData.length ? '/library' : '/imports')
+      }
     } finally {
       setLoading(false)
     }
@@ -117,12 +116,16 @@ export function useAppState() {
     let alive = true
     ;(async () => {
       try {
-        const system = await api<SystemOverview>('/api/system/overview')
+        const system = await systemApi.getOverview()
         if (!alive) return
         setOverview(system)
-        if (token) await loadPrivateData()
+        if (token) {
+          await loadPrivateData()
+        }
       } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : '初始化失败')
+        if (alive) {
+          setError(err instanceof Error ? err.message : 'Failed to initialize the app')
+        }
       }
     })()
     return () => {
@@ -135,16 +138,19 @@ export function useAppState() {
     let cancelled = false
     ;(async () => {
       try {
+        const options = authOptions()
         const [entryData, progressData] = await Promise.all([
-          api<VocabularyEntry[]>(`/api/wordbooks/${selectedWordbookId}/entries`, undefined, true),
-          api<WordbookProgress>(`/api/wordbooks/${selectedWordbookId}/progress`, undefined, true),
+          quizApi.listWordbookEntries(selectedWordbookId, options),
+          quizApi.getWordbookProgress(selectedWordbookId, options),
         ])
         if (!cancelled) {
           setEntries(entryData)
           setWordbookProgress(progressData)
         }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : '加载词书失败')
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load the wordbook')
+        }
       }
     })()
     return () => {
@@ -164,10 +170,14 @@ export function useAppState() {
 
     ;(async () => {
       try {
-        const result = await api<WordSearchResponse>(`/api/search/words?q=${encodeURIComponent(query)}`)
-        if (!cancelled) setSearchResult(result)
+        const result = await searchApi.searchWords(query, authOptions())
+        if (!cancelled) {
+          setSearchResult(result)
+        }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : '搜索失败')
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Search failed')
+        }
       }
     })()
 
@@ -187,14 +197,14 @@ export function useAppState() {
     let cancelled = false
     const timer = window.setTimeout(async () => {
       try {
-        const suggestions = await api<SearchSuggestion[]>(
-          `/api/search/suggestions?q=${encodeURIComponent(query)}`,
-        )
-        if (!cancelled) setSearchSuggestions(suggestions)
+        const suggestions = await searchApi.searchSuggestions(query, authOptions())
+        if (!cancelled) {
+          setSearchSuggestions(suggestions)
+        }
       } catch (err) {
         if (!cancelled) {
           setSearchSuggestions([])
-          setError(err instanceof Error ? err.message : '获取搜索补全失败')
+          setError(err instanceof Error ? err.message : 'Failed to load suggestions')
         }
       }
     }, 160)
@@ -208,80 +218,78 @@ export function useAppState() {
   async function handleLogin() {
     setError(null)
     try {
-      const result = await api<AuthTokenResponse>('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ account, password: loginPassword }),
-      })
+      const result = await authApi.login({ account, password: loginPassword })
       localStorage.setItem(TOKEN_KEY, result.accessToken)
       setToken(result.accessToken)
       setUser(result.user)
-      await loadPrivateData('library', result.accessToken)
+      await loadPrivateData('/library', result.accessToken)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '登录失败')
+      setError(err instanceof Error ? err.message : 'Login failed')
     }
   }
 
   async function handleRegister() {
     setError(null)
     try {
-      const result = await api<AuthTokenResponse>('/api/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({
-          username: registerUsername,
-          email: registerEmail,
-          password: registerPassword,
-        }),
+      const result = await authApi.register({
+        username: registerUsername,
+        email: registerEmail,
+        password: registerPassword,
       })
       localStorage.setItem(TOKEN_KEY, result.accessToken)
       setToken(result.accessToken)
       setUser(result.user)
-      setSourceName(`${result.user.username}-词书`)
-      await loadPrivateData('imports', result.accessToken)
+      setSourceName(`${result.user.username}-wordbook`)
+      await loadPrivateData('/imports', result.accessToken)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '注册失败')
+      setError(err instanceof Error ? err.message : 'Register failed')
     }
   }
 
   async function handleImport() {
     if (!selectedFile) {
-      setError('请先选择要导入的文件')
+      setError('Please select a file first')
       return
     }
     setError(null)
     setMessage(null)
     try {
-      const formData = new FormData()
-      formData.append('platform', selectedPlatform)
-      if (sourceName.trim()) formData.append('sourceName', sourceName.trim())
-      formData.append('file', selectedFile)
-      const task = await api<ImportTask>('/api/imports/files', { method: 'POST', body: formData }, true)
-      setMessage(`导入完成，新增 ${task.importedCards} 条单词`)
+      const task = await importApi.importFile(
+        {
+          platform: selectedPlatform,
+          sourceName,
+          file: selectedFile,
+        },
+        authOptions(),
+      )
+      setMessage(`Import finished. Added ${task.importedCards} entries.`)
       setSelectedFile(null)
-      await loadPrivateData('library')
-      if (task.wordbookId) setSelectedWordbookId(task.wordbookId)
+      await loadPrivateData('/library')
+      if (task.wordbookId) {
+        setSelectedWordbookId(task.wordbookId)
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '导入失败')
+      setError(err instanceof Error ? err.message : 'Import failed')
     }
   }
 
   async function handleCreateQuiz(wordbookId?: number) {
     const targetWordbookId = wordbookId ?? selectedWordbookId
     if (!targetWordbookId) {
-      setError('请先选择词书')
+      setError('Please select a wordbook first')
       return
     }
     setError(null)
     setMessage(null)
     try {
-      const result = await api<QuizSessionState>(
-        '/api/quiz/sessions',
-        { method: 'POST', body: JSON.stringify({ wordbookId: targetWordbookId, mode: quizMode }) },
-        true,
+      const result = await quizApi.createSession(
+        { wordbookId: targetWordbookId, mode: quizMode },
+        authOptions(),
       )
       setQuizState(result)
-      setView('quiz')
+      navigate('/quiz')
     } catch (err) {
-      setError(err instanceof Error ? err.message : '启动斩词失败')
+      setError(err instanceof Error ? err.message : 'Failed to start quiz')
     }
   }
 
@@ -289,20 +297,17 @@ export function useAppState() {
     if (!quizState?.currentQuestion) return null
     setError(null)
     try {
-      const result = await api<QuizAnswerResult>(
-        `/api/quiz/sessions/${quizState.session.id}/answers`,
+      const result = await quizApi.answerQuestion(
+        quizState.session.id,
         {
-          method: 'POST',
-          body: JSON.stringify({
-            attemptId: quizState.currentQuestion.attemptId,
-            selectedOption: option,
-          }),
+          attemptId: quizState.currentQuestion.attemptId,
+          selectedOption: option,
         },
-        true,
+        authOptions(),
       )
       return result
     } catch (err) {
-      setError(err instanceof Error ? err.message : '提交答案失败')
+      setError(err instanceof Error ? err.message : 'Failed to submit answer')
       return null
     }
   }
@@ -313,7 +318,7 @@ export function useAppState() {
   }
 
   async function getWordDetail(entryId: number) {
-    return api<WordDetail>(`/api/search/words/${entryId}`)
+    return searchApi.getWordDetail(entryId, authOptions())
   }
 
   function pickSearchSuggestion(value: string) {
@@ -323,14 +328,11 @@ export function useAppState() {
 
   const preset = presets.find((item) => item.platform === selectedPlatform)
   const selectedWordbook = wordbooks.find((item) => item.id === selectedWordbookId) ?? null
-  const switchView = (nextView: ViewKey) => startTransition(() => setView(nextView))
 
   return {
     token,
     user,
     clearAuth,
-    view,
-    switchView,
     authTab,
     setAuthTab,
     overview,

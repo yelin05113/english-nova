@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nightfall.englishnova.importservice.mapper.ImportTaskMapper">
+
+    <select id="listByUser" resultType="com.nightfall.englishnova.importservice.domain.vo.ImportTaskVo">
+        SELECT task_id, wordbook_id, platform, source_name, estimated_cards, imported_cards,
+               status, queued_at, finished_at, queue_name
+        FROM import_tasks
+        WHERE user_id = #{userId}
+        ORDER BY queued_at DESC
+    </select>
+
+    <insert id="insertTask">
+        INSERT INTO import_tasks(
+            task_id, user_id, wordbook_id, platform, source_name, estimated_cards,
+            imported_cards, status, queued_at, finished_at, queue_name
+        )
+        VALUES (
+            #{taskId}, #{userId}, #{wordbookId}, #{platform}, #{sourceName}, #{estimatedCards},
+            #{importedCards}, #{status}, #{queuedAt}, #{finishedAt}, #{queueName}
+        )
+    </insert>
+</mapper>

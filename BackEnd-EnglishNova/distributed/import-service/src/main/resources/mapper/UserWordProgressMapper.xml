@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nightfall.englishnova.importservice.mapper.UserWordProgressMapper">
+
+    <insert id="batchInsertNewProgress">
+        INSERT INTO user_word_progress(user_id, vocabulary_entry_id, status, correct_count, wrong_count)
+        VALUES
+        <foreach collection="entryIds" item="entryId" separator=",">
+            (#{userId}, #{entryId}, #{status}, 0, 0)
+        </foreach>
+    </insert>
+</mapper>

@@ -1,4 +1,4 @@
-import type { SystemOverview } from '../types'
+import type { SystemOverview } from '../api/modules/system'
 
 interface AuthPanelProps {
   authTab: 'login' | 'register'

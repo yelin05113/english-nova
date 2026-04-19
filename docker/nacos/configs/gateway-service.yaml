@@ -1,0 +1,50 @@
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: auth-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/api/auth/**
+            - id: system-service
+              uri: lb://system-service
+              predicates:
+                - Path=/api/system/**
+            - id: study-service
+              uri: lb://study-service
+              predicates:
+                - Path=/api/study/**
+            - id: search-service
+              uri: lb://search-service
+              predicates:
+                - Path=/api/search/**
+            - id: import-service
+              uri: lb://import-service
+              predicates:
+                - Path=/api/imports/**
+            - id: quiz-service-wordbooks
+              uri: lb://quiz-service
+              predicates:
+                - Path=/api/wordbooks/**
+            - id: quiz-service
+              uri: lb://quiz-service
+              predicates:
+                - Path=/api/quiz/**
+
+server:
+  port: ${GATEWAY_SERVICE_PORT:8087}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+english-nova:
+  jwt:
+    secret: ${JWT_SECRET:english-nova-local-jwt-secret-must-be-32-char}

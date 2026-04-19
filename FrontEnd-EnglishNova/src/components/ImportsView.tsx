@@ -1,28 +1,23 @@
-import type { ImportPlatform, ImportPreset, ImportTask } from '../types'
+import type { ImportPlatform } from '../api/modules/imports'
+import { useAppStateContext } from '../context/AppStateContext'
 
-interface ImportsViewProps {
-  presets: ImportPreset[]
-  selectedPlatform: ImportPlatform
-  onPlatformChange: (platform: ImportPlatform) => void
-  sourceName: string
-  onSourceNameChange: (value: string) => void
-  preset: ImportPreset | undefined
-  onFileChange: (file: File | null) => void
-  tasks: ImportTask[]
-  onImport: () => void
-}
+export function ImportsView() {
+  const {
+    presets,
+    selectedPlatform,
+    setSelectedPlatform,
+    sourceName,
+    setSourceName,
+    preset,
+    setSelectedFile,
+    tasks,
+    handleImport,
+  } = useAppStateContext()
 
-export function ImportsView({
-  presets,
-  selectedPlatform,
-  onPlatformChange,
-  sourceName,
-  onSourceNameChange,
-  preset,
-  onFileChange,
-  tasks,
-  onImport,
-}: ImportsViewProps) {
+  const onPlatformChange = (platform: ImportPlatform) => setSelectedPlatform(platform)
+  const onSourceNameChange = (value: string) => setSourceName(value)
+  const onFileChange = (file: File | null) => setSelectedFile(file)
+  const onImport = () => void handleImport()
   return (
     <div className="split">
       <div className="form">

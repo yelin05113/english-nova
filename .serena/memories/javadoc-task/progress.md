@@ -1,0 +1,1 @@
+Adding Javadoc to all Java files in english-nova-common module. Total files: 38 (25 DTOs, 6 enums, 4 utils, 1 event, 4 exceptions). Using Chinese for descriptions as codebase is Chinese-oriented.

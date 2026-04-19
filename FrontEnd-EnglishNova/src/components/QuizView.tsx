@@ -1,14 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { QuizAnswerResult, QuizMode, QuizSessionState } from '../types'
-
-interface QuizViewProps {
-  quizMode: QuizMode
-  onQuizModeChange: (mode: QuizMode) => void
-  quizState: QuizSessionState | null
-  onCreateQuiz: () => void
-  onAnswer: (option: string) => Promise<QuizAnswerResult | null>
-  onAdvance: (result: QuizAnswerResult) => void
-}
+import { useAppStateContext } from '../context/AppStateContext'
+import type { QuizMode } from '../api/modules/quiz'
 
 interface OptionState {
   option: string
@@ -20,14 +12,12 @@ interface Feedback {
   correctOption: string
 }
 
-export function QuizView({
-  quizMode,
-  onQuizModeChange,
-  quizState,
-  onCreateQuiz,
-  onAnswer,
-  onAdvance,
-}: QuizViewProps) {
+export function QuizView() {
+  const { quizMode, setQuizMode, quizState, handleCreateQuiz, handleAnswer, advanceQuiz } = useAppStateContext()
+  const onQuizModeChange = (mode: QuizMode) => setQuizMode(mode)
+  const onCreateQuiz = () => void handleCreateQuiz()
+  const onAnswer = handleAnswer
+  const onAdvance = advanceQuiz
   const [optionStates, setOptionStates] = useState<OptionState[]>([])
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [submitting, setSubmitting] = useState(false)

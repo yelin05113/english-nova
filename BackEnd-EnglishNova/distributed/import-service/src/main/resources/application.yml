@@ -4,9 +4,9 @@ spring:
   config:
     import: optional:nacos:${spring.application.name}.yaml
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:english_nova}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
-    username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:root}
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:4407}/${MYSQL_DATABASE:english_nova}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USERNAME:english_nova}
+    password: ${MYSQL_PASSWORD:english_nova}
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -27,7 +27,7 @@ spring:
         file-extension: yaml
 
 server:
-  port: ${SERVER_PORT:8084}
+  port: ${IMPORT_SERVICE_PORT:8084}
 
 management:
   endpoints:
@@ -44,3 +44,8 @@ english-nova:
     queue: ${ENGLISH_NOVA_IMPORT_QUEUE:english-nova.import.queue}
     routing-key: ${ENGLISH_NOVA_IMPORT_ROUTING_KEY:english.nova.import.requested}
     indexed-routing-key: ${ENGLISH_NOVA_INDEXED_ROUTING_KEY:english.nova.wordbook.imported}
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true

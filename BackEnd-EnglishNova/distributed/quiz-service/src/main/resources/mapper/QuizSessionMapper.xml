@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nightfall.englishnova.quiz.mapper.QuizSessionMapper">
+    <insert id="insertSession">
+        INSERT INTO quiz_sessions(id, user_id, wordbook_id, mode, total_questions, answered_questions, correct_answers, status, started_at)
+        VALUES (#{id}, #{userId}, #{wordbookId}, #{mode}, #{totalQuestions}, 0, 0, 'ACTIVE', #{startedAt})
+    </insert>
+
+    <select id="findByUserAndId" resultType="com.nightfall.englishnova.quiz.domain.vo.SessionVo">
+        SELECT id, user_id, wordbook_id, mode, total_questions, answered_questions, correct_answers, status
+        FROM quiz_sessions
+        WHERE id = #{sessionId} AND user_id = #{userId}
+        LIMIT 1
+    </select>
+
+    <update id="completeSession">
+        UPDATE quiz_sessions
+        SET status = 'COMPLETED', finished_at = CURRENT_TIMESTAMP
+        WHERE id = #{sessionId}
+    </update>
+
+    <select id="loadAnsweredCount" resultType="int">
+        SELECT answered_questions
+        FROM quiz_sessions
+        WHERE id = #{sessionId}
+    </select>
+
+    <update id="markCorrectAnswer">
+        UPDATE quiz_sessions
+        SET answered_questions = answered_questions + 1,
+            correct_answers = correct_answers + 1,
+            status = CASE
+                WHEN answered_questions + 1 &gt;= total_questions THEN 'COMPLETED'
+                ELSE status
+            END,
+            finished_at = CASE
+                WHEN answered_questions + 1 &gt;= total_questions THEN CURRENT_TIMESTAMP
+                ELSE finished_at
+            END
+        WHERE id = #{sessionId}
+    </update>
+</mapper>

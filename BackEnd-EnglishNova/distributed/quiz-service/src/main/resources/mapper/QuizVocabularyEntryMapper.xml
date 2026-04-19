@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nightfall.englishnova.quiz.mapper.QuizVocabularyEntryMapper">
+    <select id="listEntries" resultType="com.nightfall.englishnova.quiz.domain.vo.VocabularyEntryVo">
+        SELECT id, word, phonetic, meaning_cn, example_sentence, category, difficulty, visibility
+        FROM vocabulary_entries
+        WHERE user_id = #{userId} AND wordbook_id = #{wordbookId}
+        ORDER BY word ASC
+    </select>
+
+    <select id="loadWordbookEntries" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT id, word, meaning_cn
+        FROM vocabulary_entries
+        WHERE user_id = #{userId} AND wordbook_id = #{wordbookId}
+        ORDER BY id ASC
+    </select>
+
+    <select id="loadUserWordDistractors" resultType="string">
+        SELECT word
+        FROM vocabulary_entries
+        WHERE user_id = #{userId} AND id &lt;&gt; #{entryId}
+        ORDER BY RAND()
+        LIMIT 12
+    </select>
+
+    <select id="loadUserMeaningDistractors" resultType="string">
+        SELECT meaning_cn
+        FROM vocabulary_entries
+        WHERE user_id = #{userId} AND id &lt;&gt; #{entryId}
+        ORDER BY RAND()
+        LIMIT 12
+    </select>
+
+    <select id="loadPublicWordDistractors" resultType="string">
+        SELECT word
+        FROM vocabulary_entries
+        WHERE visibility = 'PUBLIC' AND id &lt;&gt; #{entryId}
+        ORDER BY RAND()
+        LIMIT 12
+    </select>
+
+    <select id="loadPublicMeaningDistractors" resultType="string">
+        SELECT meaning_cn
+        FROM vocabulary_entries
+        WHERE visibility = 'PUBLIC' AND id &lt;&gt; #{entryId}
+        ORDER BY RAND()
+        LIMIT 12
+    </select>
+</mapper>
