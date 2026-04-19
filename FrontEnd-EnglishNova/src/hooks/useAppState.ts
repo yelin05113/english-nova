@@ -35,8 +35,12 @@ export function useAppState() {
   const [selectedWordbookId, setSelectedWordbookId] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const deferredSearchQuery = useDeferredValue(searchQuery)
-  const [searchResult, setSearchResult] = useState<WordSearchResponse>({ publicHits: [], myHits: [] })
+  const [searchResult, setSearchResult] = useState<WordSearchResponse>({ hits: [] })
   const [searchSuggestions, setSearchSuggestions] = useState<SearchSuggestion[]>([])
+  const [librarySearchQuery, setLibrarySearchQuery] = useState('')
+  const deferredLibrarySearchQuery = useDeferredValue(librarySearchQuery)
+  const [librarySearchResult, setLibrarySearchResult] = useState<WordSearchResponse>({ hits: [] })
+  const [librarySearchSuggestions, setLibrarySearchSuggestions] = useState<SearchSuggestion[]>([])
   const [quizMode, setQuizMode] = useState<QuizMode>('MIXED')
   const [quizState, setQuizState] = useState<QuizSessionState | null>(null)
 
@@ -44,8 +48,8 @@ export function useAppState() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const [account, setAccount] = useState('demo')
-  const [loginPassword, setLoginPassword] = useState('123456')
+  const [account, setAccount] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
   const [registerUsername, setRegisterUsername] = useState('')
   const [registerEmail, setRegisterEmail] = useState('')
   const [registerPassword, setRegisterPassword] = useState('')
@@ -71,8 +75,11 @@ export function useAppState() {
     setWordbookProgress(null)
     setSelectedWordbookId(null)
     setQuizState(null)
-    setSearchResult({ publicHits: [], myHits: [] })
+    setSearchResult({ hits: [] })
     setSearchSuggestions([])
+    setLibrarySearchQuery('')
+    setLibrarySearchResult({ hits: [] })
+    setLibrarySearchSuggestions([])
   }
 
   async function loadPrivateData(nextPath?: string, authToken = token) {
@@ -164,7 +171,7 @@ export function useAppState() {
     const query = deferredSearchQuery.trim()
 
     if (!query) {
-      setSearchResult({ publicHits: [], myHits: [] })
+      setSearchResult({ hits: [] })
       return
     }
 
@@ -185,6 +192,38 @@ export function useAppState() {
       cancelled = true
     }
   }, [token, deferredSearchQuery])
+
+  useEffect(() => {
+    if (!token || !selectedWordbookId) {
+      setLibrarySearchResult({ hits: [] })
+      return
+    }
+
+    let cancelled = false
+    const query = deferredLibrarySearchQuery.trim()
+
+    if (!query) {
+      setLibrarySearchResult({ hits: [] })
+      return
+    }
+
+    ;(async () => {
+      try {
+        const result = await searchApi.searchWords(query, authOptions(), selectedWordbookId)
+        if (!cancelled) {
+          setLibrarySearchResult(result)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Wordbook search failed')
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, selectedWordbookId, deferredLibrarySearchQuery])
 
   useEffect(() => {
     if (!token) return
@@ -214,6 +253,39 @@ export function useAppState() {
       window.clearTimeout(timer)
     }
   }, [token, searchQuery])
+
+  useEffect(() => {
+    if (!token || !selectedWordbookId) {
+      setLibrarySearchSuggestions([])
+      return
+    }
+
+    const query = librarySearchQuery.trim()
+    if (!query) {
+      setLibrarySearchSuggestions([])
+      return
+    }
+
+    let cancelled = false
+    const timer = window.setTimeout(async () => {
+      try {
+        const suggestions = await searchApi.searchSuggestions(query, authOptions(), selectedWordbookId)
+        if (!cancelled) {
+          setLibrarySearchSuggestions(suggestions)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setLibrarySearchSuggestions([])
+          setError(err instanceof Error ? err.message : 'Failed to load wordbook suggestions')
+        }
+      }
+    }, 160)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [token, selectedWordbookId, librarySearchQuery])
 
   async function handleLogin() {
     setError(null)
@@ -326,6 +398,11 @@ export function useAppState() {
     setSearchQuery(value)
   }
 
+  function pickLibrarySearchSuggestion(value: string) {
+    setLibrarySearchSuggestions([])
+    setLibrarySearchQuery(value)
+  }
+
   const preset = presets.find((item) => item.platform === selectedPlatform)
   const selectedWordbook = wordbooks.find((item) => item.id === selectedWordbookId) ?? null
 
@@ -350,6 +427,11 @@ export function useAppState() {
     searchResult,
     searchSuggestions,
     pickSearchSuggestion,
+    librarySearchQuery,
+    setLibrarySearchQuery,
+    librarySearchResult,
+    librarySearchSuggestions,
+    pickLibrarySearchSuggestion,
     quizMode,
     setQuizMode,
     quizState,

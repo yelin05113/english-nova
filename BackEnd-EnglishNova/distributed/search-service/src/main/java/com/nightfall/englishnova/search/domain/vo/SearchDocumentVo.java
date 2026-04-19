@@ -17,5 +17,12 @@ public class SearchDocumentVo {
     private String meaningCn;
     private String exampleSentence;
     private String category;
+    private String definitionEn;
+    private String tags;
+    private Integer bncRank;
+    private Integer frqRank;
+    private Double wordfreqZipf;
+    private String exchangeInfo;
+    private String dataQuality;
     private String importSource;
 }

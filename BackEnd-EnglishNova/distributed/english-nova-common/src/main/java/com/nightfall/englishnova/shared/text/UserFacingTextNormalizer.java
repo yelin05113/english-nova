@@ -5,11 +5,15 @@ import com.ibm.icu.text.Transliterator;
 import java.util.Map;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 面向用户的文本规范化工具，提供繁体转简体、HTML 清理与多义词去重等能力。
  */
 public final class UserFacingTextNormalizer {
+
+    private static final Pattern ANGLE_SEGMENT = Pattern.compile("<\\s*([^<>]{0,24})\\s*>");
 
     private static final ThreadLocal<Transliterator> TRADITIONAL_TO_SIMPLIFIED =
             ThreadLocal.withInitial(() -> Transliterator.getInstance("Traditional-Simplified"));
@@ -62,7 +66,8 @@ public final class UserFacingTextNormalizer {
         for (Map.Entry<String, String> entry : FALLBACK_REPLACEMENTS.entrySet()) {
             simplified = simplified.replace(entry.getKey(), entry.getValue());
         }
-        return simplified
+        String sanitized = sanitizeMarkupArtifacts(simplified);
+        return sanitized
                 .replace('\u00A0', ' ')
                 .replaceAll("\\s+", " ")
                 .trim();
@@ -93,5 +98,39 @@ public final class UserFacingTextNormalizer {
             }
         }
         return deduplicated.isEmpty() ? normalized : String.join(" / ", deduplicated);
+    }
+
+    private static String sanitizeMarkupArtifacts(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+
+        String sanitized = value;
+        sanitized = sanitized.replaceAll("(?i)<\\s*br\\s*/?\\s*>", " ");
+        sanitized = sanitized.replaceAll("(?i)</\\s*(?:p|div|li|ul|ol|span|strong|em|b|i|u|small|font|sup|sub)\\s*>", " ");
+        sanitized = sanitized.replaceAll("(?i)<\\s*(?:p|div|li|ul|ol|span|strong|em|b|i|u|small|font|sup|sub)(?:\\s+[^<>]*)?>", " ");
+        sanitized = unwrapAngleSegments(sanitized);
+        sanitized = sanitized.replaceAll("</?[^<>]+>", " ");
+        sanitized = sanitized.replaceAll("\\s+", " ");
+        return sanitized.trim();
+    }
+
+    private static String unwrapAngleSegments(String value) {
+        Matcher matcher = ANGLE_SEGMENT.matcher(value);
+        StringBuffer buffer = new StringBuffer();
+        while (matcher.find()) {
+            String inner = matcher.group(1) == null ? "" : matcher.group(1).trim();
+            String replacement;
+            if (inner.isBlank() || inner.matches("[?\\-_/!*=+.:;]+")) {
+                replacement = " ";
+            } else if (inner.matches("(?i)/?(?:p|div|li|ul|ol|span|strong|em|b|i|u|small|font|sup|sub|br)\\b.*")) {
+                replacement = " ";
+            } else {
+                replacement = inner;
+            }
+            matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
     }
 }

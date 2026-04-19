@@ -27,7 +27,7 @@ export function HeroPanel({ wordbooks, agenda, searchResult }: HeroPanelProps) {
         </article>
         <article>
           <span>搜索结果</span>
-          <strong>{searchResult.publicHits.length + searchResult.myHits.length}</strong>
+          <strong>{searchResult.hits.length}</strong>
         </article>
       </div>
     </section>

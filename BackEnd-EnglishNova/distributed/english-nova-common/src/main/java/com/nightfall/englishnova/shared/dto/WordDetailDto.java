@@ -22,6 +22,20 @@ public record WordDetailDto(
         String exampleSentence,
         @Schema(description = "Category")
         String category,
+        @Schema(description = "English definition")
+        String definitionEn,
+        @Schema(description = "Tags")
+        String tags,
+        @Schema(description = "BNC rank")
+        Integer bncRank,
+        @Schema(description = "FRQ rank")
+        Integer frqRank,
+        @Schema(description = "Wordfreq Zipf score")
+        Double wordfreqZipf,
+        @Schema(description = "Exchange info")
+        String exchangeInfo,
+        @Schema(description = "Data quality")
+        String dataQuality,
         @Schema(description = "Difficulty level")
         int difficulty,
         @Schema(description = "Visibility")

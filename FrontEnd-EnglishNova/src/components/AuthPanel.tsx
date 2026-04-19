@@ -58,7 +58,12 @@ export function AuthPanel({
           <div className="form">
             <label>
               <span>用户名或邮箱</span>
-              <input value={account} onChange={(e) => setAccount(e.target.value)} />
+              <input
+                value={account}
+                onChange={(e) => setAccount(e.target.value)}
+                placeholder="请输入用户名或邮箱"
+                autoComplete="username"
+              />
             </label>
             <label>
               <span>密码</span>
@@ -66,6 +71,8 @@ export function AuthPanel({
                 type="password"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="请输入密码"
+                autoComplete="current-password"
               />
             </label>
             <button type="button" className="primary" onClick={() => void onLogin()}>
@@ -79,13 +86,18 @@ export function AuthPanel({
               <input
                 value={registerUsername}
                 onChange={(e) => setRegisterUsername(e.target.value)}
+                placeholder="请输入用户名"
+                autoComplete="username"
               />
             </label>
             <label>
               <span>邮箱</span>
               <input
+                type="email"
                 value={registerEmail}
                 onChange={(e) => setRegisterEmail(e.target.value)}
+                placeholder="请输入邮箱"
+                autoComplete="email"
               />
             </label>
             <label>
@@ -94,10 +106,12 @@ export function AuthPanel({
                 type="password"
                 value={registerPassword}
                 onChange={(e) => setRegisterPassword(e.target.value)}
+                placeholder="请设置密码"
+                autoComplete="new-password"
               />
             </label>
             <button type="button" className="primary" onClick={() => void onRegister()}>
-              注册并创建私有空间
+              注册并开始使用
             </button>
           </div>
         )}

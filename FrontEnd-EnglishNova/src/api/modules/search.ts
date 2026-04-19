@@ -11,6 +11,11 @@ export interface SearchHit {
   source: string
   exampleSentence: string
   category: string
+  definitionEn?: string
+  tags?: string
+  frequencyRank?: number | null
+  wordfreqZipf?: number | null
+  dataQuality?: string
   visibility: string
   importSource: string
   matchPercent: number
@@ -18,8 +23,12 @@ export interface SearchHit {
 }
 
 export interface WordSearchResponse {
-  publicHits: SearchHit[]
-  myHits: SearchHit[]
+  hits: SearchHit[]
+}
+
+interface LegacyWordSearchResponse {
+  publicHits?: SearchHit[]
+  myHits?: SearchHit[]
 }
 
 export interface SearchSuggestion {
@@ -40,6 +49,13 @@ export interface WordDetail {
   meaningCn: string
   exampleSentence: string
   category: string
+  definitionEn?: string
+  tags?: string
+  bncRank?: number | null
+  frqRank?: number | null
+  wordfreqZipf?: number | null
+  exchangeInfo?: string
+  dataQuality?: string
   difficulty: number
   visibility: string
   source: string
@@ -48,24 +64,51 @@ export interface WordDetail {
   audioUrl: string
 }
 
+function normalizeWordSearchResponse(
+  payload: WordSearchResponse | LegacyWordSearchResponse,
+  includeLegacyMyHits = false,
+): WordSearchResponse {
+  if ('hits' in payload && Array.isArray(payload.hits)) {
+    return payload
+  }
+  const legacyPayload = payload as LegacyWordSearchResponse
+  return {
+    hits: includeLegacyMyHits
+      ? [...(legacyPayload.publicHits ?? []), ...(legacyPayload.myHits ?? [])]
+      : (legacyPayload.publicHits ?? []),
+  }
+}
+
 function withAuth(options?: ApiAuthOptions) {
   return { requireAuth: true, token: options?.token, onUnauthorized: options?.onUnauthorized }
 }
 
-async function searchWords(query: string, options?: ApiAuthOptions) {
-  return apiFetch<WordSearchResponse>(
-    `/api/search/words?q=${encodeURIComponent(query)}`,
+async function searchWords(query: string, options?: ApiAuthOptions, wordbookId?: number | null) {
+  const params = new URLSearchParams({ q: query })
+  if (wordbookId != null) {
+    params.set('wordbookId', String(wordbookId))
+  }
+  const response = await apiFetch<WordSearchResponse | LegacyWordSearchResponse>(
+    `/api/search/words?${params.toString()}`,
     undefined,
     withAuth(options),
   )
+  return normalizeWordSearchResponse(response, wordbookId != null)
 }
 
-async function searchSuggestions(query: string, options?: ApiAuthOptions) {
-  return apiFetch<SearchSuggestion[]>(
-    `/api/search/suggestions?q=${encodeURIComponent(query)}`,
+async function searchSuggestions(query: string, options?: ApiAuthOptions, wordbookId?: number | null) {
+  const params = new URLSearchParams({ q: query })
+  if (wordbookId != null) {
+    params.set('wordbookId', String(wordbookId))
+  }
+  const suggestions = await apiFetch<SearchSuggestion[]>(
+    `/api/search/suggestions?${params.toString()}`,
     undefined,
     withAuth(options),
   )
+  return wordbookId == null
+    ? suggestions.filter((suggestion) => suggestion.visibility === 'PUBLIC')
+    : suggestions
 }
 
 async function getWordDetail(entryId: number, options?: ApiAuthOptions) {

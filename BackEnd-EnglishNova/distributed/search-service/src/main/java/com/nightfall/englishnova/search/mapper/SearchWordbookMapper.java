@@ -10,9 +10,18 @@ import java.util.List;
 @Mapper
 public interface SearchWordbookMapper {
 
-    Long findPublicWordbookId(@Param("userId") long userId, @Param("sourceName") String sourceName);
+    int countOwnedWordbook(@Param("userId") long userId, @Param("wordbookId") long wordbookId);
+
+    Long findPublicWordbookId(@Param("userId") long userId, @Param("name") String name);
 
     void insertPublicWordbook(PublicWordbookPo row);
+
+    void updatePublicWordbookMetadata(
+            @Param("wordbookId") long wordbookId,
+            @Param("platform") String platform,
+            @Param("sourceName") String sourceName,
+            @Param("importSource") String importSource
+    );
 
     void syncWordbookCount(@Param("wordbookId") long wordbookId);
 

@@ -6,6 +6,7 @@ MYSQL_PORT="${MYSQL_PORT:-3306}"
 MYSQL_DATABASE="${MYSQL_DATABASE:-english_nova}"
 MYSQL_USERNAME="${MYSQL_USERNAME:-english_nova}"
 MYSQL_PASSWORD="${MYSQL_PASSWORD:-english_nova}"
+FORCE_SEED_MYSQL="${FORCE_SEED_MYSQL:-false}"
 
 NACOS_BASE_URL="${NACOS_BASE_URL:-http://nacos:8848}"
 NACOS_GROUP="${NACOS_GROUP:-DEFAULT_GROUP}"
@@ -36,10 +37,31 @@ wait_for_mysql() {
 }
 
 seed_mysql() {
+  if [ "${FORCE_SEED_MYSQL}" != "true" ] && mysql_is_initialized; then
+    echo "MySQL already initialized. Skipping schema and seed import."
+    echo "Set FORCE_SEED_MYSQL=true if you want to rebuild the database from seed files."
+    return 0
+  fi
+
   echo "Seeding MySQL schema and data..."
   mysql -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -u"${MYSQL_USERNAME}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}" < /seed/mysql/init/001-schema.sql
   mysql -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -u"${MYSQL_USERNAME}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}" < /seed/mysql/init/002-seed.sql
   echo "MySQL seed finished."
+}
+
+mysql_is_initialized() {
+  table_count="$(
+    mysql \
+      -N -s \
+      -h"${MYSQL_HOST}" \
+      -P"${MYSQL_PORT}" \
+      -u"${MYSQL_USERNAME}" \
+      -p"${MYSQL_PASSWORD}" \
+      -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${MYSQL_DATABASE}' AND table_name='users';" \
+      2>/dev/null || printf '0'
+  )"
+
+  [ "${table_count}" -gt 0 ]
 }
 
 get_nacos_token() {

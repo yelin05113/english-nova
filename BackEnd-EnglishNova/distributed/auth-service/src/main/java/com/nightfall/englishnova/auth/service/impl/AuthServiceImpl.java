@@ -1,7 +1,7 @@
 package com.nightfall.englishnova.auth.service.impl;
 
-import com.nightfall.englishnova.auth.mapper.UserMapper;
 import com.nightfall.englishnova.auth.domain.po.UserPo;
+import com.nightfall.englishnova.auth.mapper.UserMapper;
 import com.nightfall.englishnova.auth.service.AuthService;
 import com.nightfall.englishnova.auth.service.JwtTokenService;
 import com.nightfall.englishnova.shared.dto.AuthTokenResponse;
@@ -68,6 +68,18 @@ public class AuthServiceImpl implements AuthService {
         }
         String token = jwtTokenService.issueToken(user.getId(), user.getUsername());
         return new AuthTokenResponse(token, new AuthUserDto(user.getId(), user.getUsername()));
+    }
+
+    @Override
+    public AuthUserDto getCurrentUser(long userId, String username) {
+        UserPo user = userMapper.selectById(userId);
+        if (user == null || !user.getUsername().equals(username)) {
+            throw new UnauthorizedException("登录已失效，请重新登录");
+        }
+        if (!UserStatus.ACTIVE.name().equals(user.getStatus())) {
+            throw new ForbiddenException("账号已被禁用");
+        }
+        return new AuthUserDto(user.getId(), user.getUsername());
     }
 
     private void ensureUnique(String username, String email) {

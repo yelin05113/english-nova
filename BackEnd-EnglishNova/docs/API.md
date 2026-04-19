@@ -197,6 +197,42 @@
 
 ---
 
+#### 5.4.5 High-frequency public catalog warmup
+- **Method**: `POST`
+- **URL**: `/api/search/public-catalog/import-high-frequency`
+- **Auth**: required
+- **Request body**: `PublicCatalogImportJobRequest`
+
+```json
+{
+  "sourceName": "high-frequency-5000",
+  "limit": 5000,
+  "batchSize": 150,
+  "refreshExisting": false
+}
+```
+
+- **Behavior**: creates a persistent background job. The worker reads `public-catalog/high-frequency-5000.txt`, imports in batches, skips existing public words unless refresh is enabled, and only stores entries whose word, phonetic, Chinese meaning, example, category, and audio URL are complete.
+- **Response**: `ApiResponse<PublicCatalogImportJobDto>`
+
+#### 5.4.6 Public catalog import job status
+- **Method**: `GET`
+- **URL**: `/api/search/public-catalog/import-jobs/{jobId}`
+- **Auth**: required
+- **Response**: `ApiResponse<PublicCatalogImportJobDto>`
+
+#### 5.4.7 Retry failed public catalog import items
+- **Method**: `POST`
+- **URL**: `/api/search/public-catalog/import-jobs/{jobId}/retry-failed`
+- **Auth**: required
+- **Response**: `ApiResponse<PublicCatalogImportJobDto>`
+
+#### 5.4.8 Cancel public catalog import job
+- **Method**: `POST`
+- **URL**: `/api/search/public-catalog/import-jobs/{jobId}/cancel`
+- **Auth**: required
+- **Response**: `ApiResponse<PublicCatalogImportJobDto>`
+
 ### 5.5 Import Service（导入服务）
 
 基地址前缀：`/api/imports`

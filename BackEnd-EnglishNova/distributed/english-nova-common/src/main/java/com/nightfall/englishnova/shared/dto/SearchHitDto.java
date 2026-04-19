@@ -18,6 +18,16 @@ public record SearchHitDto(
         String exampleSentence,
         @Schema(description = "Category")
         String category,
+        @Schema(description = "English definition")
+        String definitionEn,
+        @Schema(description = "Tags")
+        String tags,
+        @Schema(description = "Frequency rank")
+        Integer frequencyRank,
+        @Schema(description = "Wordfreq Zipf score")
+        Double wordfreqZipf,
+        @Schema(description = "Data quality")
+        String dataQuality,
         @Schema(description = "Visibility")
         String visibility,
         @Schema(description = "Import source")

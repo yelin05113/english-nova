@@ -2,6 +2,7 @@ package com.nightfall.englishnova.search.utools;
 
 import com.nightfall.englishnova.shared.text.TextRepairUtils;
 import com.nightfall.englishnova.shared.text.UserFacingTextNormalizer;
+import com.nightfall.englishnova.shared.text.PhoneticNormalizer;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -73,10 +74,7 @@ public final class SearchTextUtools {
     }
 
     public static String normalizePhonetic(String phonetic) {
-        if (phonetic == null) {
-            return "";
-        }
-        return phonetic.trim();
+        return PhoneticNormalizer.normalize(phonetic);
     }
 
     public static String normalizeImportSource(String importSource) {

@@ -48,6 +48,8 @@ services:
 
   seeder:
     image: mysql:8.4
+    profiles:
+      - init
     env_file:
       - ./.env
     environment:
@@ -56,6 +58,7 @@ services:
       NACOS_BASE_URL: http://nacos:8848
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      FORCE_SEED_MYSQL: ${FORCE_SEED_MYSQL:-false}
     depends_on:
       mysql:
         condition: service_healthy

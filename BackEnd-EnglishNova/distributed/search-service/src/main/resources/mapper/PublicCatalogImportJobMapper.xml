@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nightfall.englishnova.search.mapper.PublicCatalogImportJobMapper">
+
+    <sql id="jobColumns">
+        id,
+        source_name,
+        status,
+        total_words,
+        processed_words,
+        imported_words,
+        updated_words,
+        skipped_words,
+        failed_words,
+        refresh_existing,
+        batch_size,
+        started_at,
+        finished_at,
+        created_by_user_id,
+        error_message,
+        created_at,
+        updated_at
+    </sql>
+
+    <insert id="insertJob" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO public_catalog_import_jobs(
+            source_name, status, total_words, refresh_existing, batch_size, created_by_user_id
+        )
+        VALUES (
+            #{sourceName}, #{status}, #{totalWords}, #{refreshExisting}, #{batchSize}, #{createdByUserId}
+        )
+    </insert>
+
+    <insert id="insertItems">
+        INSERT IGNORE INTO public_catalog_import_items(job_id, word, status)
+        VALUES
+        <foreach collection="words" item="word" separator=",">
+            (#{jobId}, #{word}, 'PENDING')
+        </foreach>
+    </insert>
+
+    <select id="findJob" resultType="com.nightfall.englishnova.search.domain.vo.PublicCatalogImportJobVo">
+        SELECT <include refid="jobColumns"/>
+        FROM public_catalog_import_jobs
+        WHERE id = #{jobId}
+        LIMIT 1
+    </select>
+
+    <select id="findNextRunnableJob" resultType="com.nightfall.englishnova.search.domain.vo.PublicCatalogImportJobVo">
+        SELECT <include refid="jobColumns"/>
+        FROM public_catalog_import_jobs
+        WHERE status IN ('PENDING', 'RUNNING')
+        ORDER BY created_at ASC, id ASC
+        LIMIT 1
+    </select>
+
+    <update id="startJob">
+        UPDATE public_catalog_import_jobs
+        SET status = 'RUNNING',
+            started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
+            finished_at = NULL,
+            error_message = NULL
+        WHERE id = #{jobId} AND status IN ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED')
+    </update>
+
+    <select id="claimPendingItems" resultType="com.nightfall.englishnova.search.domain.vo.PublicCatalogImportItemVo">
+        SELECT id, job_id, word, attempt_count
+        FROM public_catalog_import_items
+        WHERE job_id = #{jobId} AND status = 'PENDING'
+        ORDER BY id ASC
+        LIMIT #{limit}
+    </select>
+
+    <update id="resetRunningItems">
+        UPDATE public_catalog_import_items
+        SET status = 'PENDING'
+        WHERE job_id = #{jobId} AND status = 'RUNNING'
+    </update>
+
+    <update id="markItemRunning">
+        UPDATE public_catalog_import_items
+        SET status = 'RUNNING',
+            attempt_count = attempt_count + 1,
+            last_error = NULL
+        WHERE id = #{itemId} AND status = 'PENDING'
+    </update>
+
+    <update id="markItemImported">
+        UPDATE public_catalog_import_items
+        SET status = #{status},
+            entry_id = #{entryId},
+            has_phonetic = 1,
+            has_meaning_cn = 1,
+            has_example = 1,
+            has_category = 1,
+            has_audio = 1,
+            has_definition = 1,
+            has_frequency = 1,
+            last_error = NULL
+        WHERE id = #{itemId}
+    </update>
+
+    <update id="markItemSkipped">
+        UPDATE public_catalog_import_items
+        SET status = 'SKIPPED',
+            entry_id = #{entryId},
+            last_error = NULL
+        WHERE id = #{itemId}
+    </update>
+
+    <update id="markItemFailed">
+        UPDATE public_catalog_import_items
+        SET status = 'FAILED',
+            last_error = #{lastError}
+        WHERE id = #{itemId}
+    </update>
+
+    <update id="refreshJobCounters">
+        UPDATE public_catalog_import_jobs j
+        SET processed_words = (
+                SELECT COUNT(*)
+                FROM public_catalog_import_items i
+                WHERE i.job_id = j.id AND i.status IN ('IMPORTED', 'UPDATED', 'SKIPPED', 'FAILED')
+            ),
+            imported_words = (
+                SELECT COUNT(*)
+                FROM public_catalog_import_items i
+                WHERE i.job_id = j.id AND i.status = 'IMPORTED'
+            ),
+            updated_words = (
+                SELECT COUNT(*)
+                FROM public_catalog_import_items i
+                WHERE i.job_id = j.id AND i.status = 'UPDATED'
+            ),
+            skipped_words = (
+                SELECT COUNT(*)
+                FROM public_catalog_import_items i
+                WHERE i.job_id = j.id AND i.status = 'SKIPPED'
+            ),
+            failed_words = (
+                SELECT COUNT(*)
+                FROM public_catalog_import_items i
+                WHERE i.job_id = j.id AND i.status = 'FAILED'
+            )
+        WHERE j.id = #{jobId}
+    </update>
+
+    <update id="completeJobIfFinished">
+        UPDATE public_catalog_import_jobs j
+        SET status = 'COMPLETED',
+            finished_at = CURRENT_TIMESTAMP
+        WHERE j.id = #{jobId}
+          AND j.status = 'RUNNING'
+          AND NOT EXISTS (
+              SELECT 1
+              FROM public_catalog_import_items i
+              WHERE i.job_id = j.id AND i.status IN ('PENDING', 'RUNNING')
+          )
+    </update>
+
+    <update id="failJob">
+        UPDATE public_catalog_import_jobs
+        SET status = 'FAILED',
+            finished_at = CURRENT_TIMESTAMP,
+            error_message = #{errorMessage}
+        WHERE id = #{jobId}
+    </update>
+
+    <update id="cancelJob">
+        UPDATE public_catalog_import_jobs
+        SET status = 'CANCELLED',
+            finished_at = CURRENT_TIMESTAMP
+        WHERE id = #{jobId} AND status IN ('PENDING', 'RUNNING')
+    </update>
+
+    <update id="resetFailedItems">
+        UPDATE public_catalog_import_items
+        SET status = 'PENDING',
+            last_error = NULL
+        WHERE job_id = #{jobId} AND status = 'FAILED'
+    </update>
+</mapper>

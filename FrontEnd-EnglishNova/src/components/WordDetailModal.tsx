@@ -1,4 +1,5 @@
 import type { WordDetail } from '../api/modules/search'
+import { formatMultilineText } from '../utils/text'
 
 interface WordDetailModalProps {
   detail: WordDetail
@@ -8,54 +9,43 @@ interface WordDetailModalProps {
 }
 
 export function WordDetailModal({ detail, loading, onClose, onReplayAudio }: WordDetailModalProps) {
+  const meaningText = formatMultilineText(detail.meaningCn)
+  const exampleText = formatMultilineText(detail.exampleSentence)
+  const wordbookText = formatMultilineText(detail.wordbookName)
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <section className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-        <div className="panel-head">
-          <div>
-            <p className="eyebrow">{detail.source}</p>
-            <h3>{detail.word}</h3>
+        <div className="panel-head detail-head">
+          <div className="detail-title-block">
+            <div className="detail-title-row">
+              <h3>{detail.word}</h3>
+              <strong className="phonetic-text detail-phonetic">/{detail.phonetic || '-'}/</strong>
+            </div>
           </div>
-          <button type="button" className="ghost" onClick={onClose}>
+          <button type="button" className="ghost detail-close-button" onClick={onClose}>
             关闭
           </button>
         </div>
 
-        <div className="detail-grid">
-          <div className="meta">
-            <span className="meta-label">音标</span>
-            <strong className="phonetic-text">{detail.phonetic || '-'}</strong>
-          </div>
-          <div className="meta">
-            <span className="meta-label">释义</span>
-            <span className="meta-value">{detail.meaningCn}</span>
-          </div>
-          <div className="meta">
-            <span className="meta-label">来源</span>
-            <strong>{detail.importSource}</strong>
-            <span className="meta-value">{detail.sourceName}</span>
-          </div>
+        <div className="card detail-meaning-card">
+          <strong>释义</strong>
+          <span className="meta-value multiline-text">{meaningText}</span>
         </div>
 
         <div className="list">
           <div className="card">
             <strong>例句</strong>
-            <span>{detail.exampleSentence}</span>
-          </div>
-          <div className="card">
-            <strong>分类</strong>
-            <span>{detail.category}</span>
+            <span className="multiline-text">{exampleText}</span>
           </div>
           <div className="card">
             <strong>词书</strong>
-            <span>{detail.wordbookName}</span>
+            <span className="multiline-text">{wordbookText}</span>
           </div>
         </div>
 
-        <div className="toolbar">
-          <span className="badge">{detail.visibility}</span>
-          <span className="badge">难度 {detail.difficulty}</span>
-          <button type="button" className="primary" onClick={onReplayAudio} disabled={loading}>
+        <div className="detail-actions">
+          <button type="button" className="primary detail-action-button" onClick={onReplayAudio} disabled={loading}>
             {loading ? '加载中...' : '播放发音'}
           </button>
         </div>

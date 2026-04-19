@@ -9,7 +9,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class VocabularyCleanupVo {
     private long id;
+    private String word;
+    private String importSource;
+    private String phonetic;
     private String meaningCn;
     private String exampleSentence;
     private String category;
+    private String definitionEn;
 }
