@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>提供系统概览、模块状态等公开查询端点。</p>
  */
 @RestController
-@RequestMapping("/api/system")
+@RequestMapping({"/api/system", "/system"})
 public class SystemController {
 
     private final SystemOverviewService systemOverviewService;

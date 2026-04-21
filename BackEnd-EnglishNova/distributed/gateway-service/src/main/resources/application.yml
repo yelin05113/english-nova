@@ -22,31 +22,35 @@ spring:
             - id: auth-service
               uri: lb://auth-service
               predicates:
-                - Path=/api/auth/**
+                - Path=/api/auth/**,/auth/**
             - id: system-service
               uri: lb://system-service
               predicates:
-                - Path=/api/system/**
+                - Path=/api/system/**,/system/**
             - id: study-service
               uri: lb://study-service
               predicates:
-                - Path=/api/study/**
+                - Path=/api/study/**,/study/**
             - id: search-service
               uri: lb://search-service
               predicates:
-                - Path=/api/search/**
+                - Path=/api/search/**,/search/**
+            - id: public-wordbooks
+              uri: lb://search-service
+              predicates:
+                - Path=/api/public-wordbooks/**,/public-wordbooks/**
             - id: import-service
               uri: lb://import-service
               predicates:
-                - Path=/api/imports/**
+                - Path=/api/imports/**,/imports/**
             - id: quiz-service-wordbooks
               uri: lb://quiz-service
               predicates:
-                - Path=/api/wordbooks/**
+                - Path=/api/wordbooks/**,/wordbooks/**
             - id: quiz-service
               uri: lb://quiz-service
               predicates:
-                - Path=/api/quiz/**
+                - Path=/api/quiz/**,/quiz/**
 
 server:
   port: ${GATEWAY_SERVICE_PORT:8087}

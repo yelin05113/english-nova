@@ -26,12 +26,16 @@ public class GatewayJwtFilter implements GlobalFilter, Ordered {
 
     private static final List<String> PUBLIC_PATHS = List.of(
             "/api/auth/login",
+            "/auth/login",
             "/api/auth/register",
+            "/auth/register",
             "/api/system/overview",
+            "/system/overview",
             "/actuator/health"
     );
     private static final List<String> OPTIONAL_TOKEN_PATHS = List.of(
-            "/api/search/"
+            "/api/search/",
+            "/search/"
     );
 
     private final SecretKey secretKey;

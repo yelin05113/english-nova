@@ -15,5 +15,4 @@ public class VocabularyCleanupVo {
     private String meaningCn;
     private String exampleSentence;
     private String category;
-    private String definitionEn;
 }

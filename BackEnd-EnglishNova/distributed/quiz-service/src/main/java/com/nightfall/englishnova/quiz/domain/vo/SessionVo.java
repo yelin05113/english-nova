@@ -10,8 +10,10 @@ import lombok.NoArgsConstructor;
 public class SessionVo {
     private String id;
     private long userId;
-    private long wordbookId;
+    private String targetType;
+    private long targetId;
     private String mode;
+    private int startOffset;
     private int totalQuestions;
     private int answeredQuestions;
     private int correctAnswers;

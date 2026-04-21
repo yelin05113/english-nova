@@ -1,6 +1,6 @@
 import { apiFetch, type ApiAuthOptions } from '../client'
 
-export type ImportPlatform = 'BAICIZHAN' | 'BUBEIDANCI' | 'SHANBAY' | 'ANKI'
+export type ImportPlatform = 'BAICIZHAN' | 'BUBEIDANCI' | 'SHANBAY' | 'ANKI' | 'ECDICT'
 
 export interface ImportPreset {
   platform: ImportPlatform
@@ -34,11 +34,7 @@ function withAuth(options?: ApiAuthOptions) {
 }
 
 async function listPresets(options?: ApiAuthOptions) {
-  return apiFetch<ImportPreset[]>('/api/imports/presets', undefined, withAuth(options))
-}
-
-async function listTasks(options?: ApiAuthOptions) {
-  return apiFetch<ImportTask[]>('/api/imports/tasks', undefined, withAuth(options))
+  return apiFetch<ImportPreset[]>('/imports/presets', undefined, withAuth(options))
 }
 
 async function importFile(payload: ImportFileRequest, options?: ApiAuthOptions) {
@@ -49,11 +45,10 @@ async function importFile(payload: ImportFileRequest, options?: ApiAuthOptions) 
   }
   formData.append('file', payload.file)
 
-  return apiFetch<ImportTask>('/api/imports/files', { method: 'POST', body: formData }, withAuth(options))
+  return apiFetch<ImportTask>('/imports/files', { method: 'POST', body: formData }, withAuth(options))
 }
 
 export const importApi = {
   listPresets,
-  listTasks,
   importFile,
 }

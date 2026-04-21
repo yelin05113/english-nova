@@ -11,7 +11,8 @@ import lombok.NoArgsConstructor;
 public class AttemptPo {
     private String sessionId;
     private long userId;
-    private long vocabularyEntryId;
+    private Long userVocabularyEntryId;
+    private Long publicEntryId;
     private String promptType;
     private String promptText;
     private String optionA;
@@ -19,5 +20,6 @@ public class AttemptPo {
     private String optionC;
     private String optionD;
     private String correctOption;
+    private int wrongSubmissions;
     private Timestamp createdAt;
 }

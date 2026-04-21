@@ -4,18 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nightfall.englishnova.search.domain.po.PublicEntryPo;
 import com.nightfall.englishnova.search.domain.po.PublicCatalogImportJobPo;
-import com.nightfall.englishnova.search.domain.po.PublicWordbookPo;
 import com.nightfall.englishnova.search.domain.vo.DetailVo;
-import com.nightfall.englishnova.search.domain.vo.ImportTaskCleanupVo;
 import com.nightfall.englishnova.search.domain.vo.PublicCatalogImportItemVo;
 import com.nightfall.englishnova.search.domain.vo.PublicCatalogImportJobVo;
+import com.nightfall.englishnova.search.domain.vo.PublicWordbookRow;
 import com.nightfall.englishnova.search.domain.vo.SearchDocumentVo;
-import com.nightfall.englishnova.search.domain.vo.StudyFocusCleanupVo;
 import com.nightfall.englishnova.search.domain.vo.VocabularyCleanupVo;
 import com.nightfall.englishnova.search.domain.vo.WordbookCleanupVo;
 import com.nightfall.englishnova.search.mapper.PublicCatalogImportJobMapper;
-import com.nightfall.englishnova.search.mapper.SearchImportTaskMapper;
-import com.nightfall.englishnova.search.mapper.SearchStudyFocusMapper;
 import com.nightfall.englishnova.search.mapper.SearchVocabularyMapper;
 import com.nightfall.englishnova.search.mapper.SearchWordbookMapper;
 import com.nightfall.englishnova.search.service.SearchCatalogService;
@@ -25,11 +21,15 @@ import com.nightfall.englishnova.shared.dto.PublicCatalogImportJobDto;
 import com.nightfall.englishnova.shared.dto.PublicCatalogImportJobRequest;
 import com.nightfall.englishnova.shared.dto.PublicCatalogImportRequest;
 import com.nightfall.englishnova.shared.dto.PublicCatalogImportResultDto;
+import com.nightfall.englishnova.shared.dto.PublicWordbookDto;
+import com.nightfall.englishnova.shared.dto.PublicWordbookEntryDto;
 import com.nightfall.englishnova.shared.dto.SearchHitDto;
 import com.nightfall.englishnova.shared.dto.SearchSuggestionDto;
 import com.nightfall.englishnova.shared.dto.WordDetailDto;
 import com.nightfall.englishnova.shared.dto.WordSearchResponseDto;
+import com.nightfall.englishnova.shared.enums.VocabularyEntryType;
 import com.nightfall.englishnova.shared.events.WordbookImportedEvent;
+import com.nightfall.englishnova.shared.exception.ConflictException;
 import com.nightfall.englishnova.shared.exception.ForbiddenException;
 import com.nightfall.englishnova.shared.exception.NotFoundException;
 import com.nightfall.englishnova.shared.text.PhoneticNormalizer;
@@ -44,6 +44,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -63,37 +64,43 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 基于 Elasticsearch 的搜索目录服务。
- * 负责公共词库与私有词库搜索、词条详情查询，以及公共词库补全导入。
- */
+ * 鍩轰簬 Elasticsearch 鐨勬悳绱㈢洰褰曟湇鍔°€? * 璐熻矗鍏叡璇嶅簱涓庣鏈夎瘝搴撴悳绱€佽瘝鏉¤鎯呮煡璇紝浠ュ強鍏叡璇嶅簱琛ュ叏瀵煎叆銆? */
 @Service
 public class SearchCatalogServiceImpl implements SearchCatalogService {
 
     private static final Logger log = LoggerFactory.getLogger(SearchCatalogServiceImpl.class);
 
     private static final String INDEX_NAME = "english-nova-words";
+    private static final String PUBLIC_ENTRY_TYPE = "PUBLIC";
+    private static final String USER_ENTRY_TYPE = "USER";
     private static final String PUBLIC_VISIBILITY = "PUBLIC";
     private static final String PRIVATE_VISIBILITY = "PRIVATE";
-    private static final long PUBLIC_OWNER_USER_ID = 1103L;
     private static final String PUBLIC_SOURCE_LABEL = "Public Catalog - ECDICT";
     private static final String PRIVATE_SOURCE_LABEL = "My Wordbook";
-    private static final String PUBLIC_WORDBOOK_NAME = "English Nova Public Catalog";
-    private static final String PUBLIC_WORDBOOK_SOURCE = "ECDICT + dictionaryapi.dev";
-    private static final String PUBLIC_WORDBOOK_PLATFORM = "ECDICT";
     private static final String PUBLIC_IMPORT_SOURCE = "ecdict";
-    private static final String ECDICT_HIGH_FREQUENCY_RESOURCE = "public-catalog/ecdict-high-frequency-5000.tsv";
-    private static final String HIGH_FREQUENCY_SOURCE_NAME = "ecdict-high-frequency-5000";
+    private static final String ECDICT_HIGH_FREQUENCY_RESOURCE = "public-catalog/ecdict-high-frequency-10000.tsv";
+    private static final String ECDICT_HIGH_FREQUENCY_5000_RESOURCE = "public-catalog/ecdict-high-frequency-5000.tsv";
+    private static final String HIGH_FREQUENCY_SOURCE_NAME = "ecdict-high-frequency-10000";
+    private static final String HIGH_FREQUENCY_5000_SOURCE_NAME = "ecdict-high-frequency-5000";
+    private static final String LEGACY_HIGH_FREQUENCY_5000_SOURCE_NAME = "high-frequency-5000";
+    private static final Map<String, String> HIGH_FREQUENCY_RESOURCE_BY_SOURCE = Map.of(
+            HIGH_FREQUENCY_SOURCE_NAME, ECDICT_HIGH_FREQUENCY_RESOURCE,
+            HIGH_FREQUENCY_5000_SOURCE_NAME, ECDICT_HIGH_FREQUENCY_5000_RESOURCE,
+            LEGACY_HIGH_FREQUENCY_5000_SOURCE_NAME, ECDICT_HIGH_FREQUENCY_5000_RESOURCE
+    );
     private static final String JOB_STATUS_PENDING = "PENDING";
     private static final String JOB_STATUS_RUNNING = "RUNNING";
     private static final String JOB_STATUS_CANCELLED = "CANCELLED";
     private static final String ITEM_STATUS_IMPORTED = "IMPORTED";
     private static final String ITEM_STATUS_UPDATED = "UPDATED";
     private static final int MAX_IMPORT_WORDS = 500;
-    private static final int MAX_HIGH_FREQUENCY_WORDS = 5000;
-    private static final int DEFAULT_HIGH_FREQUENCY_LIMIT = 5000;
+    private static final int MAX_HIGH_FREQUENCY_WORDS = 10000;
+    private static final int DEFAULT_HIGH_FREQUENCY_LIMIT = 10000;
     private static final int DEFAULT_HIGH_FREQUENCY_BATCH_SIZE = 150;
     private static final int DEFAULT_BATCH_SIZE = 100;
     private static final int SEARCH_RESULT_SIZE = 18;
@@ -106,8 +113,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     private final SearchVocabularyMapper searchVocabularyMapper;
     private final SearchWordbookMapper searchWordbookMapper;
     private final PublicCatalogImportJobMapper publicCatalogImportJobMapper;
-    private final SearchImportTaskMapper searchImportTaskMapper;
-    private final SearchStudyFocusMapper searchStudyFocusMapper;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final String elasticsearchBaseUrl;
@@ -118,16 +123,12 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             SearchVocabularyMapper searchVocabularyMapper,
             SearchWordbookMapper searchWordbookMapper,
             PublicCatalogImportJobMapper publicCatalogImportJobMapper,
-            SearchImportTaskMapper searchImportTaskMapper,
-            SearchStudyFocusMapper searchStudyFocusMapper,
             ObjectMapper objectMapper,
             @Value("${spring.elasticsearch.uris}") String elasticsearchBaseUrl
     ) {
         this.searchVocabularyMapper = searchVocabularyMapper;
         this.searchWordbookMapper = searchWordbookMapper;
         this.publicCatalogImportJobMapper = publicCatalogImportJobMapper;
-        this.searchImportTaskMapper = searchImportTaskMapper;
-        this.searchStudyFocusMapper = searchStudyFocusMapper;
         this.objectMapper = objectMapper;
         this.elasticsearchBaseUrl = elasticsearchBaseUrl.endsWith("/")
                 ? elasticsearchBaseUrl.substring(0, elasticsearchBaseUrl.length() - 1)
@@ -136,8 +137,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     /**
-     * 未指定词书时只搜索公共词库；指定词书时只搜索当前用户拥有的该词书。
-     */
+     * 鏈寚瀹氳瘝涔︽椂鍙悳绱㈠叕鍏辫瘝搴擄紱鎸囧畾璇嶄功鏃跺彧鎼滅储褰撳墠鐢ㄦ埛鎷ユ湁鐨勮璇嶄功銆?     */
     public WordSearchResponseDto searchVocabulary(String keyword, CurrentUser user, Long wordbookId) {
         String normalizedKeyword = SearchTextUtools.normalizeSearchKeyword(keyword);
         if (normalizedKeyword.isBlank()) {
@@ -146,17 +146,16 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
 
         SearchScope scope = resolveSearchScope(user, wordbookId);
         ensureIndex();
-        List<SearchHitDto> hits = searchByScope(normalizedKeyword, scope.ownerUserId(), scope.visibility(), scope.wordbookId());
+        List<SearchHitDto> hits = searchByScope(normalizedKeyword, scope.entryType(), scope.ownerUserId(), scope.visibility(), scope.wordbookId());
         if (hits.isEmpty() && scope.allowHydrate() && shouldHydrate(normalizedKeyword)) {
             importWords(List.of(normalizedKeyword), false);
-            hits = searchByScope(normalizedKeyword, scope.ownerUserId(), scope.visibility(), scope.wordbookId());
+            hits = searchByScope(normalizedKeyword, scope.entryType(), scope.ownerUserId(), scope.visibility(), scope.wordbookId());
         }
         return new WordSearchResponseDto(hits);
     }
 
     /**
-     * 当关键字看起来像单词查询时，返回搜索建议。
-     */
+     * 褰撳叧閿瓧鐪嬭捣鏉ュ儚鍗曡瘝鏌ヨ鏃讹紝杩斿洖鎼滅储寤鸿銆?     */
     public List<SearchSuggestionDto> searchSuggestions(String keyword, CurrentUser user, Long wordbookId) {
         String normalizedKeyword = SearchTextUtools.normalizeSearchKeyword(keyword);
         if (normalizedKeyword.isBlank() || !shouldHydrate(normalizedKeyword)) {
@@ -165,14 +164,13 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
 
         SearchScope scope = resolveSearchScope(user, wordbookId);
         ensureIndex();
-        return searchSuggestionsByWordMatch(normalizedKeyword, scope.ownerUserId(), scope.visibility(), scope.wordbookId());
+        return searchSuggestionsByWordMatch(normalizedKeyword, scope.entryType(), scope.ownerUserId(), scope.visibility(), scope.wordbookId());
     }
 
     /**
-     * 加载单个词条详情，并在条件满足时懒加载补全音频地址。
-     */
-    public WordDetailDto getWordDetail(long entryId, CurrentUser user) {
-        DetailVo row = loadDetailRow(entryId);
+     * 鍔犺浇鍗曚釜璇嶆潯璇︽儏锛屽苟鍦ㄦ潯浠舵弧瓒虫椂鎳掑姞杞借ˉ鍏ㄩ煶棰戝湴鍧€銆?     */
+    public WordDetailDto getWordDetail(long entryId, VocabularyEntryType entryType, CurrentUser user) {
+        DetailVo row = loadDetailRow(entryId, entryType);
         if (PRIVATE_VISIBILITY.equalsIgnoreCase(row.getVisibility())
                 && (user == null || row.getOwnerUserId() == null || row.getOwnerUserId() != user.id())) {
             throw new ForbiddenException("You cannot access this word");
@@ -183,12 +181,13 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         if (audioUrl.isBlank() && shouldHydrate(normalizedWord)) {
             audioUrl = SearchTextUtools.normalizeAudioUrl(fetchAudioUrl(normalizedWord));
         }
-        if (!audioUrl.isBlank() && !sameText(row.getAudioUrl(), audioUrl)) {
-            searchVocabularyMapper.updateAudioUrl(entryId, audioUrl);
+        if (entryType == VocabularyEntryType.PUBLIC && !audioUrl.isBlank() && !sameText(row.getAudioUrl(), audioUrl)) {
+            searchVocabularyMapper.updatePublicAudioUrl(entryId, audioUrl);
         }
 
         return new WordDetailDto(
                 row.getEntryId(),
+                row.getEntryType(),
                 row.getOwnerUserId(),
                 row.getWordbookId(),
                 UserFacingTextNormalizer.normalizeDisplayText(row.getWordbookName()),
@@ -197,8 +196,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 UserFacingTextNormalizer.normalizeMeaningText(row.getMeaningCn()),
                 UserFacingTextNormalizer.normalizeDisplayText(row.getExampleSentence()),
                 UserFacingTextNormalizer.normalizeMeaningText(row.getCategory()),
-                UserFacingTextNormalizer.normalizeDisplayText(row.getDefinitionEn()),
-                UserFacingTextNormalizer.normalizeDisplayText(row.getTags()),
                 row.getBncRank(),
                 row.getFrqRank(),
                 row.getWordfreqZipf(),
@@ -206,16 +203,109 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 UserFacingTextNormalizer.normalizeDisplayText(row.getDataQuality()),
                 row.getDifficulty(),
                 row.getVisibility(),
-                buildSourceLabel(row.getVisibility()),
+                buildSourceLabel(row.getEntryType()),
                 UserFacingTextNormalizer.normalizeDisplayText(row.getSourceName()),
                 SearchTextUtools.normalizeImportSource(row.getImportSource()),
                 audioUrl
         );
     }
 
+    public List<PublicWordbookDto> listPublicWordbooks(CurrentUser user) {
+        return searchWordbookMapper.listPublicWordbooks(user.id()).stream()
+                .map(row -> new PublicWordbookDto(
+                        row.getId(),
+                        UserFacingTextNormalizer.normalizeDisplayText(row.getName()),
+                        UserFacingTextNormalizer.normalizeDisplayText(row.getSourceName()),
+                        row.getSourceUrl(),
+                        UserFacingTextNormalizer.normalizeDisplayText(row.getLicenseName()),
+                        row.getLicenseUrl(),
+                        row.getTag(),
+                        row.getWordCount(),
+                        row.isSubscribed(),
+                        row.getCompletedCount(),
+                        row.getWrongCount(),
+                        row.getNextSortOrder(),
+                        row.getCreatedAt().toInstant().atOffset(ZoneOffset.UTC),
+                        row.getUpdatedAt().toInstant().atOffset(ZoneOffset.UTC)
+                ))
+                .toList();
+    }
+
+    public List<PublicWordbookEntryDto> listPublicWordbookEntries(long publicWordbookId) {
+        requirePublicWordbook(publicWordbookId);
+        return searchWordbookMapper.listPublicWordbookEntries(publicWordbookId).stream()
+                .map(row -> new PublicWordbookEntryDto(
+                        row.getPublicEntryId(),
+                        row.getSortOrder(),
+                        TextRepairUtils.repair(row.getWord()),
+                        SearchTextUtools.normalizePhonetic(row.getPhonetic()),
+                        UserFacingTextNormalizer.normalizeMeaningText(row.getMeaningCn()),
+                        UserFacingTextNormalizer.normalizeDisplayText(row.getExampleSentence()),
+                        row.getBncRank(),
+                        row.getFrqRank(),
+                        row.getWordfreqZipf()
+                ))
+                .toList();
+    }
+
+    @Transactional
+    public PublicWordbookDto subscribePublicWordbook(long publicWordbookId, CurrentUser user) {
+        PublicWordbookRow publicWordbook = requirePublicWordbook(publicWordbookId);
+        if (publicWordbook.getWordCount() <= 0) {
+            throw new IllegalArgumentException("Public wordbook has no entries");
+        }
+        if (searchWordbookMapper.countUserPublicWordbook(user.id(), publicWordbookId) > 0) {
+            throw new ConflictException("You have already subscribed to this public wordbook");
+        }
+        searchWordbookMapper.insertUserPublicWordbook(user.id(), publicWordbookId);
+        return requireUserPublicWordbook(user.id(), publicWordbookId);
+    }
+
+    @Transactional
+    public PublicWordbookDto resetPublicWordbookProgress(long publicWordbookId, CurrentUser user) {
+        requirePublicWordbook(publicWordbookId);
+        int updated = searchWordbookMapper.resetUserPublicWordbook(user.id(), publicWordbookId);
+        if (updated == 0) {
+            throw new NotFoundException("Public wordbook subscription not found");
+        }
+        searchWordbookMapper.deleteUserPublicWordbookWrongEntries(user.id(), publicWordbookId);
+        searchWordbookMapper.cancelActivePublicQuizSessions(user.id(), publicWordbookId);
+        return requireUserPublicWordbook(user.id(), publicWordbookId);
+    }
+
+    private PublicWordbookRow requirePublicWordbook(long publicWordbookId) {
+        PublicWordbookRow row = searchWordbookMapper.findPublicWordbook(publicWordbookId);
+        if (row == null) {
+            throw new NotFoundException("Public wordbook not found");
+        }
+        return row;
+    }
+
+    private PublicWordbookDto requireUserPublicWordbook(long userId, long publicWordbookId) {
+        PublicWordbookRow row = searchWordbookMapper.findUserPublicWordbook(userId, publicWordbookId);
+        if (row == null) {
+            throw new NotFoundException("Public wordbook not found");
+        }
+        return new PublicWordbookDto(
+                row.getId(),
+                UserFacingTextNormalizer.normalizeDisplayText(row.getName()),
+                UserFacingTextNormalizer.normalizeDisplayText(row.getSourceName()),
+                row.getSourceUrl(),
+                UserFacingTextNormalizer.normalizeDisplayText(row.getLicenseName()),
+                row.getLicenseUrl(),
+                row.getTag(),
+                row.getWordCount(),
+                row.isSubscribed(),
+                row.getCompletedCount(),
+                row.getWrongCount(),
+                row.getNextSortOrder(),
+                row.getCreatedAt().toInstant().atOffset(ZoneOffset.UTC),
+                row.getUpdatedAt().toInstant().atOffset(ZoneOffset.UTC)
+        );
+    }
+
     /**
-     * 将单词导入共享公共词库。
-     */
+     * 灏嗗崟璇嶅鍏ュ叡浜叕鍏辫瘝搴撱€?     */
     public PublicCatalogImportResultDto importPublicCatalog(PublicCatalogImportRequest request) {
         boolean refreshExisting = request != null && Boolean.TRUE.equals(request.refreshExisting());
         List<String> normalizedWords = SearchTextUtools.normalizeWords(request == null ? null : request.words(), MAX_IMPORT_WORDS);
@@ -232,15 +322,16 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         int resolvedLimit = clampPositive(request == null ? null : request.limit(), DEFAULT_HIGH_FREQUENCY_LIMIT, MAX_HIGH_FREQUENCY_WORDS);
         int resolvedBatchSize = clampPositive(request == null ? null : request.batchSize(), DEFAULT_HIGH_FREQUENCY_BATCH_SIZE, MAX_IMPORT_WORDS);
         boolean shouldRefreshExisting = request != null && Boolean.TRUE.equals(request.refreshExisting());
+        String resolvedSourceName = resolveHighFrequencySourceName(request == null ? null : request.sourceName());
 
-        List<String> words = loadHighFrequencyWords();
+        List<String> words = loadHighFrequencyWords(resolvedSourceName);
         if (words.size() > resolvedLimit) {
             words = words.subList(0, resolvedLimit);
         }
 
         PublicCatalogImportJobPo job = new PublicCatalogImportJobPo(
                 null,
-                HIGH_FREQUENCY_SOURCE_NAME,
+                resolvedSourceName,
                 JOB_STATUS_PENDING,
                 words.size(),
                 shouldRefreshExisting,
@@ -345,12 +436,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 }
             }
 
-            if (databaseChanged) {
-                Long wordbookId = findPublicWordbookId();
-                if (wordbookId != null) {
-                    syncPublicWordbookCount(wordbookId);
-                }
-            }
             if (indexChanged && elasticsearchAvailable) {
                 safeRefreshIndex();
             }
@@ -401,8 +486,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     /**
-     * 应用启动后重建整套搜索索引。
-     */
+     * 搴旂敤鍚姩鍚庨噸寤烘暣濂楁悳绱㈢储寮曘€?     */
     @EventListener(ApplicationReadyEvent.class)
     public void rebuildAll() {
         int updatedRows = normalizeDatabaseContent();
@@ -421,31 +505,29 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     /**
-     * 在词书导入完成后，将数据同步到 Elasticsearch。
-     */
+     * 鍦ㄨ瘝涔﹀鍏ュ畬鎴愬悗锛屽皢鏁版嵁鍚屾鍒?Elasticsearch銆?     */
     @RabbitListener(queues = "${english-nova.search.index-queue}")
     public void handleImportedWordbook(WordbookImportedEvent event) {
         if (!tryEnsureIndex()) {
             log.warn("Skipping Elasticsearch sync for imported wordbook {} because the cluster is unavailable", event.wordbookId());
             return;
         }
-        searchVocabularyMapper.listByUserAndWordbook(event.userId(), event.wordbookId()).forEach(this::indexDocument);
+        searchVocabularyMapper.listUserByWordbook(event.userId(), event.wordbookId()).forEach(this::indexDocument);
         safeRefreshIndex();
     }
 
-    // 在指定可见性范围内查询 Elasticsearch。
-    private List<SearchHitDto> searchByScope(String keyword, Long ownerUserId, String visibility, Long wordbookId) {
+        private List<SearchHitDto> searchByScope(String keyword, String entryType, Long ownerUserId, String visibility, Long wordbookId) {
         try {
             String normalizedWordKeyword = normalizeIndexedWord(keyword);
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("size", SEARCH_RESULT_FETCH_SIZE);
             body.put("_source", List.of(
-                    "entryId", "word", "phonetic", "meaningCn", "exampleSentence", "category",
-                    "definitionEn", "tags", "bncRank", "frqRank", "wordfreqZipf", "dataQuality",
-                    "visibility", "importSource"
+                    "entryId", "entryType", "word", "phonetic", "meaningCn", "exampleSentence", "category",
+                    "bncRank", "frqRank", "wordfreqZipf", "dataQuality",
+                    "visibility", "importSource", "ownerUserId", "wordbookId"
             ));
 
-            List<Object> filters = buildScopeFilters(ownerUserId, visibility, wordbookId);
+            List<Object> filters = buildScopeFilters(entryType, ownerUserId, visibility, wordbookId);
 
             List<Object> shouldQueries = new ArrayList<>();
             shouldQueries.add(buildTextSearchQuery(keyword));
@@ -468,8 +550,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         }
     }
 
-    // 未登录用户只能看公共词条；已登录用户还能看见自己的私有词条。
-    private Object buildSuggestionVisibilityFilter(CurrentUser user) {
+        private Object buildSuggestionVisibilityFilter(CurrentUser user) {
         if (user == null) {
             return Map.of("term", Map.of("visibility", PUBLIC_VISIBILITY));
         }
@@ -492,6 +573,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
 
     private List<SearchSuggestionDto> searchSuggestionsByWordMatch(
             String keyword,
+            String entryType,
             Long ownerUserId,
             String visibility,
             Long wordbookId
@@ -500,24 +582,23 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             String normalizedWordKeyword = normalizeIndexedWord(keyword);
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("size", SUGGESTION_FETCH_SIZE);
-            body.put("_source", List.of("entryId", "word", "visibility", "ownerUserId"));
+            body.put("_source", List.of("entryId", "entryType", "word", "visibility", "ownerUserId"));
             body.put("query", Map.of(
                     "bool", Map.of(
-                            "filter", buildScopeFilters(ownerUserId, visibility, wordbookId),
+                            "filter", buildScopeFilters(entryType, ownerUserId, visibility, wordbookId),
                             "should", buildWordSearchQueries(normalizedWordKeyword),
                             "minimum_should_match", 1
                     )
             ));
 
             JsonNode response = sendJson("POST", "/" + INDEX_NAME + "/_search", body, false);
-            return toSearchSuggestions(response.path("hits").path("hits"), null, keyword);
+            return toSearchSuggestions(response.path("hits").path("hits"), keyword);
         } catch (IOException | InterruptedException exception) {
             throw new IllegalStateException("Failed to query Elasticsearch suggestions", exception);
         }
     }
 
-    // 按单词去重搜索建议，并保留排序结果最优的一项。
-    private List<SearchSuggestionDto> toSearchSuggestions(JsonNode hits, CurrentUser user, String keyword) {
+        private List<SearchSuggestionDto> toSearchSuggestions(JsonNode hits, String keyword) {
         List<SuggestionCandidate> candidates = new ArrayList<>();
         for (JsonNode hit : hits) {
             JsonNode source = hit.path("_source");
@@ -527,6 +608,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             }
             candidates.add(new SuggestionCandidate(
                     source.path("entryId").asLong(),
+                    source.path("entryType").asText(PUBLIC_ENTRY_TYPE),
                     TextRepairUtils.repair(source.path("word").asText()),
                     source.path("visibility").asText(),
                     source.path("ownerUserId").isMissingNode() || source.path("ownerUserId").isNull() ? null : source.path("ownerUserId").asLong(),
@@ -543,7 +625,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         for (SuggestionCandidate candidate : candidates) {
             String key = candidate.word().toLowerCase(Locale.ROOT);
             SuggestionCandidate existing = deduplicated.get(key);
-            if (existing == null || shouldReplaceSuggestion(existing, candidate, user)) {
+            if (existing == null || suggestionComparator().compare(candidate, existing) < 0) {
                 deduplicated.put(key, candidate);
             }
         }
@@ -554,6 +636,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         for (SuggestionCandidate candidate : ordered) {
             result.add(new SearchSuggestionDto(
                     candidate.entryId(),
+                    candidate.entryType(),
                     candidate.word(),
                     candidate.visibility(),
                     candidate.matchType().matchPercent(),
@@ -572,14 +655,13 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             JsonNode source = hit.path("_source");
             candidates.add(new SearchHitCandidate(
                     source.path("entryId").asLong(),
+                    source.path("entryType").asText(PUBLIC_ENTRY_TYPE),
                     TextRepairUtils.repair(source.path("word").asText()),
                     SearchTextUtools.normalizePhonetic(source.path("phonetic").asText()),
                     UserFacingTextNormalizer.normalizeMeaningText(source.path("meaningCn").asText()),
-                    buildSourceLabel(source.path("visibility").asText()),
+                    buildSourceLabel(source.path("entryType").asText(PUBLIC_ENTRY_TYPE)),
                     UserFacingTextNormalizer.normalizeDisplayText(source.path("exampleSentence").asText()),
                     UserFacingTextNormalizer.normalizeMeaningText(source.path("category").asText()),
-                    UserFacingTextNormalizer.normalizeDisplayText(source.path("definitionEn").asText()),
-                    UserFacingTextNormalizer.normalizeDisplayText(source.path("tags").asText()),
                     source.path("bncRank").isMissingNode() || source.path("bncRank").isNull() ? null : source.path("bncRank").asInt(),
                     source.path("frqRank").isMissingNode() || source.path("frqRank").isNull() ? null : source.path("frqRank").asInt(),
                     source.path("wordfreqZipf").isMissingNode() || source.path("wordfreqZipf").isNull() ? null : source.path("wordfreqZipf").asDouble(),
@@ -602,14 +684,13 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             }
             rankedHits.add(new RankedSearchHit(
                     candidate.entryId(),
+                    candidate.entryType(),
                     candidate.word(),
                     candidate.phonetic(),
                     candidate.meaningCn(),
                     candidate.source(),
                     candidate.exampleSentence(),
                     candidate.category(),
-                    candidate.definitionEn(),
-                    candidate.tags(),
                     candidate.bncRank(),
                     candidate.frqRank(),
                     candidate.wordfreqZipf(),
@@ -626,14 +707,13 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         for (RankedSearchHit hit : rankedHits) {
             result.add(new SearchHitDto(
                     hit.entryId(),
+                    hit.entryType(),
                     hit.word(),
                     hit.phonetic(),
                     hit.meaningCn(),
                     hit.source(),
                     hit.exampleSentence(),
                     hit.category(),
-                    hit.definitionEn(),
-                    hit.tags(),
                     frequencyRank(hit.bncRank(), hit.frqRank()),
                     hit.wordfreqZipf(),
                     hit.dataQuality(),
@@ -652,26 +732,9 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     private Map<String, Object> buildTextSearchQuery(String keyword) {
         return Map.of("multi_match", Map.of(
                 "query", keyword,
-                "fields", List.of("meaningCn^3", "category^2", "exampleSentence", "definitionEn^0.5"),
+                "fields", List.of("meaningCn^3", "category^2", "exampleSentence"),
                 "type", "best_fields"
         ));
-    }
-
-    private boolean shouldReplaceSuggestion(SuggestionCandidate existing, SuggestionCandidate candidate, CurrentUser user) {
-        if (user == null) {
-            return suggestionComparator().compare(candidate, existing) < 0;
-        }
-
-        boolean existingIsMine = PRIVATE_VISIBILITY.equalsIgnoreCase(existing.visibility())
-                && existing.ownerUserId() != null
-                && existing.ownerUserId() == user.id();
-        boolean candidateIsMine = PRIVATE_VISIBILITY.equalsIgnoreCase(candidate.visibility())
-                && candidate.ownerUserId() != null
-                && candidate.ownerUserId() == user.id();
-        if (candidateIsMine != existingIsMine) {
-            return candidateIsMine;
-        }
-        return suggestionComparator().compare(candidate, existing) < 0;
     }
 
     private List<Object> buildWordSearchQueries(String normalizedWordKeyword) {
@@ -759,8 +822,9 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         return TextRepairUtils.repair(value).trim().toLowerCase(Locale.ROOT);
     }
 
-    private List<Object> buildScopeFilters(Long ownerUserId, String visibility, Long wordbookId) {
+    private List<Object> buildScopeFilters(String entryType, Long ownerUserId, String visibility, Long wordbookId) {
         List<Object> filters = new ArrayList<>();
+        filters.add(Map.of("term", Map.of("entryType", entryType)));
         filters.add(Map.of("term", Map.of("visibility", visibility)));
         if (ownerUserId != null) {
             filters.add(Map.of("term", Map.of("ownerUserId", ownerUserId)));
@@ -773,12 +837,12 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
 
     private SearchScope resolveSearchScope(CurrentUser user, Long wordbookId) {
         if (wordbookId == null) {
-            return new SearchScope(null, PUBLIC_VISIBILITY, null, true);
+            return new SearchScope(PUBLIC_ENTRY_TYPE, null, PUBLIC_VISIBILITY, null, true);
         }
         if (user == null || searchWordbookMapper.countOwnedWordbook(user.id(), wordbookId) == 0) {
             throw new ForbiddenException("You cannot access this wordbook");
         }
-        return new SearchScope(user.id(), PRIVATE_VISIBILITY, wordbookId, false);
+        return new SearchScope(USER_ENTRY_TYPE, user.id(), PRIVATE_VISIBILITY, wordbookId, false);
     }
 
     private Comparator<RankedSearchHit> searchHitComparator() {
@@ -800,9 +864,51 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 .thenComparingLong(SuggestionCandidate::entryId);
     }
 
-    private List<String> loadHighFrequencyWords() {
-        Map<String, EcdictCatalogEntry> catalog = loadEcdictCatalog();
-        return new ArrayList<>(catalog.keySet()).subList(0, Math.min(MAX_HIGH_FREQUENCY_WORDS, catalog.size()));
+    private String resolveHighFrequencySourceName(String sourceName) {
+        if (sourceName == null || sourceName.isBlank()) {
+            return HIGH_FREQUENCY_SOURCE_NAME;
+        }
+        String normalized = sourceName.trim().toLowerCase(Locale.ROOT);
+        if (!HIGH_FREQUENCY_RESOURCE_BY_SOURCE.containsKey(normalized)) {
+            throw new IllegalArgumentException("Unsupported public catalog source: " + sourceName);
+        }
+        return normalized;
+    }
+
+    private List<String> loadHighFrequencyWords(String sourceName) {
+        String resourceName = HIGH_FREQUENCY_RESOURCE_BY_SOURCE.get(sourceName);
+        if (resourceName == null) {
+            throw new IllegalArgumentException("Unsupported public catalog source: " + sourceName);
+        }
+
+        ClassPathResource resource = new ClassPathResource(resourceName);
+        List<String> words = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            boolean firstLine = true;
+            while ((line = reader.readLine()) != null && words.size() < MAX_HIGH_FREQUENCY_WORDS) {
+                if (firstLine) {
+                    firstLine = false;
+                    if (line.startsWith("word\t")) {
+                        continue;
+                    }
+                }
+                String[] columns = line.split("\t", -1);
+                if (columns.length == 0) {
+                    continue;
+                }
+                String word = normalizeIndexedWord(columns[0]);
+                if (supportsWordMatching(word)) {
+                    words.add(word);
+                }
+            }
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to load public catalog source: " + sourceName, exception);
+        }
+        if (words.isEmpty()) {
+            throw new IllegalStateException("Public catalog source is empty: " + sourceName);
+        }
+        return words;
     }
 
     private Map<String, EcdictCatalogEntry> loadEcdictCatalog() {
@@ -852,26 +958,25 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             return null;
         }
         String[] columns = line.split("\t", -1);
-        if (columns.length < 12) {
+        if (columns.length < 10) {
             return null;
         }
         String word = normalizeIndexedWord(columns[0]);
         if (!supportsWordMatching(word)) {
             return null;
         }
+        int metadataOffset = columns.length >= 12 ? 2 : 0;
         return new EcdictCatalogEntry(
                 word,
                 SearchTextUtools.normalizePhonetic(columns[1]),
                 truncateText(UserFacingTextNormalizer.normalizeMeaningText(columns[2]), 255),
                 truncateText(UserFacingTextNormalizer.normalizeMeaningText(columns[3]), 120),
-                UserFacingTextNormalizer.normalizeDisplayText(columns[4]),
-                UserFacingTextNormalizer.normalizeDisplayText(columns[5]),
-                parseInteger(columns[6]),
-                parseInteger(columns[7]),
-                parseDouble(columns[8]),
-                UserFacingTextNormalizer.normalizeDisplayText(columns[9]),
-                UserFacingTextNormalizer.normalizeDisplayText(columns[10]),
-                UserFacingTextNormalizer.normalizeDisplayText(columns[11])
+                parseInteger(columns[4 + metadataOffset]),
+                parseInteger(columns[5 + metadataOffset]),
+                parseDouble(columns[6 + metadataOffset]),
+                UserFacingTextNormalizer.normalizeDisplayText(columns[7 + metadataOffset]),
+                UserFacingTextNormalizer.normalizeDisplayText(columns[8 + metadataOffset]),
+                UserFacingTextNormalizer.normalizeDisplayText(columns[9 + metadataOffset])
         );
     }
 
@@ -1040,12 +1145,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             }
         }
 
-        if (databaseChanged) {
-            Long wordbookId = findPublicWordbookId();
-            if (wordbookId != null) {
-                syncPublicWordbookCount(wordbookId);
-            }
-        }
         if (indexChanged && elasticsearchAvailable) {
             safeRefreshIndex();
         }
@@ -1063,8 +1162,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         );
     }
 
-    // 获取一个词典结果，并规范化成数据库落库需要的字段。
-    private DictionaryEntryPayload fetchDictionaryEntry(String word) {
+        private DictionaryEntryPayload fetchDictionaryEntry(String word) {
         EcdictCatalogEntry entry = loadEcdictCatalog().get(normalizeIndexedWord(word));
         if (entry == null) {
             return null;
@@ -1083,8 +1181,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 entry.phonetic(),
                 entry.meaningCn(),
                 example,
-                entry.category(),
-                entry.definitionEn(),
                 audioUrl
         )) {
             return null;
@@ -1096,8 +1192,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 entry.meaningCn(),
                 truncateText(example, 255),
                 entry.category(),
-                entry.definitionEn(),
-                entry.tags(),
                 entry.bncRank(),
                 entry.frqRank(),
                 entry.wordfreqZipf(),
@@ -1109,8 +1203,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         );
     }
 
-    // 当当前词条没有音频时，从 dictionaryapi.dev 拉取音频地址。
-    private String fetchAudioUrl(String word) {
+        private String fetchAudioUrl(String word) {
         return fetchDictionaryApiExtras(word).audioUrl();
     }
 
@@ -1218,8 +1311,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             String phonetic,
             String meaningCn,
             String exampleSentence,
-            String category,
-            String definitionEn,
             String audioUrl
     ) {
         return hasCleanText(word)
@@ -1227,8 +1318,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 && hasCleanText(meaningCn)
                 && containsHanCharacter(meaningCn)
                 && hasCleanText(exampleSentence)
-                && hasCleanText(category)
-                && hasCleanText(definitionEn)
                 && hasCleanText(audioUrl)
                 && audioUrl.startsWith("http");
     }
@@ -1287,8 +1376,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         }
     }
 
-    // 将原始翻译文本拆成规范化的中文片段，并做去重。
-    private void addNormalizedChineseTranslationSegments(String rawValue, Set<String> translations) {
+        private void addNormalizedChineseTranslationSegments(String rawValue, Set<String> translations) {
         if (rawValue == null || rawValue.isBlank()) {
             return;
         }
@@ -1353,83 +1441,34 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     private Long findExistingPublicEntryId(String word) {
-        return searchVocabularyMapper.findExistingPublicEntryId(PUBLIC_OWNER_USER_ID, PUBLIC_VISIBILITY, word);
+        return searchVocabularyMapper.findExistingPublicEntryId(word);
     }
 
-    private Long findPublicWordbookId() {
-        return searchWordbookMapper.findPublicWordbookId(
-                PUBLIC_OWNER_USER_ID,
-                UserFacingTextNormalizer.normalizeDisplayText(PUBLIC_WORDBOOK_NAME)
-        );
-    }
-
-    // 按需创建共享公共词书。
-    private long ensurePublicWordbook() {
-        Long existingId = findPublicWordbookId();
-        if (existingId != null) {
-            searchWordbookMapper.updatePublicWordbookMetadata(
-                    existingId,
-                    PUBLIC_WORDBOOK_PLATFORM,
-                    UserFacingTextNormalizer.normalizeDisplayText(PUBLIC_WORDBOOK_SOURCE),
-                    PUBLIC_IMPORT_SOURCE
-            );
-            return existingId;
-        }
-
-        PublicWordbookPo row = new PublicWordbookPo();
-        row.setUserId(PUBLIC_OWNER_USER_ID);
-        row.setName(UserFacingTextNormalizer.normalizeDisplayText(PUBLIC_WORDBOOK_NAME));
-        row.setPlatform(PUBLIC_WORDBOOK_PLATFORM);
-        row.setSourceName(UserFacingTextNormalizer.normalizeDisplayText(PUBLIC_WORDBOOK_SOURCE));
-        row.setImportSource(PUBLIC_IMPORT_SOURCE);
-        searchWordbookMapper.insertPublicWordbook(row);
-        if (row.getId() != null) {
-            return row.getId();
-        }
-
-        Long createdId = findPublicWordbookId();
-        if (createdId != null) {
-            return createdId;
-        }
-        throw new IllegalStateException("Failed to create public catalog wordbook");
-    }
-
-    private void syncPublicWordbookCount(long wordbookId) {
-        searchWordbookMapper.syncWordbookCount(wordbookId);
-    }
-
-    private long createPublicEntry(long wordbookId, DictionaryEntryPayload payload) {
-        PublicEntryPo row = toPublicEntryPo(wordbookId, payload);
+    private long createPublicEntry(DictionaryEntryPayload payload) {
+        PublicEntryPo row = toPublicEntryPo(payload);
         searchVocabularyMapper.insertPublicEntry(row);
         if (row.getId() != null) {
             return row.getId();
         }
 
-        Long createdId = findPublicEntryId(wordbookId, payload.word());
+        Long createdId = findPublicEntryId(payload.word());
         if (createdId != null) {
             return createdId;
         }
         throw new IllegalStateException("Failed to create public catalog entry for word: " + payload.word());
     }
 
-    private PublicEntryPo toPublicEntryPo(long wordbookId, DictionaryEntryPayload payload) {
+    private PublicEntryPo toPublicEntryPo(DictionaryEntryPayload payload) {
         PublicEntryPo row = new PublicEntryPo();
-        row.setUserId(PUBLIC_OWNER_USER_ID);
-        row.setWordbookId(wordbookId);
         row.setWord(payload.word());
         row.setPhonetic(resolvePersistedPhonetic(payload.word(), payload.phonetic(), payload.importSource()));
         row.setMeaningCn(payload.meaningCn());
         row.setExampleSentence(payload.exampleSentence());
-        row.setCategory(payload.category());
-        row.setDefinitionEn(payload.definitionEn());
-        row.setTags(payload.tags());
         row.setBncRank(payload.bncRank());
         row.setFrqRank(payload.frqRank());
         row.setWordfreqZipf(payload.wordfreqZipf());
         row.setExchangeInfo(payload.exchangeInfo());
         row.setDataQuality(payload.dataQuality());
-        row.setDifficulty(payload.difficulty());
-        row.setVisibility(PUBLIC_VISIBILITY);
         row.setAudioUrl(payload.audioUrl());
         row.setImportSource(payload.importSource());
         return row;
@@ -1442,15 +1481,11 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 resolvePersistedPhonetic(payload.word(), payload.phonetic(), payload.importSource()),
                 payload.meaningCn(),
                 payload.exampleSentence(),
-                payload.category(),
-                payload.definitionEn(),
-                payload.tags(),
                 payload.bncRank(),
                 payload.frqRank(),
                 payload.wordfreqZipf(),
                 payload.exchangeInfo(),
                 payload.dataQuality(),
-                payload.difficulty(),
                 payload.audioUrl(),
                 payload.importSource()
         );
@@ -1468,18 +1503,20 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     private void indexPublicEntry(long entryId) {
-        SearchDocumentVo row = searchVocabularyMapper.findDocumentById(entryId);
+        SearchDocumentVo row = searchVocabularyMapper.findPublicDocumentById(entryId);
         if (row != null) {
             indexDocument(row);
         }
     }
 
-    private Long findPublicEntryId(long wordbookId, String word) {
-        return searchVocabularyMapper.findPublicEntryId(PUBLIC_OWNER_USER_ID, wordbookId, word);
+    private Long findPublicEntryId(String word) {
+        return searchVocabularyMapper.findPublicEntryId(word);
     }
 
-    private DetailVo loadDetailRow(long entryId) {
-        DetailVo row = searchVocabularyMapper.loadDetailRow(entryId);
+    private DetailVo loadDetailRow(long entryId, VocabularyEntryType entryType) {
+        DetailVo row = entryType == VocabularyEntryType.PUBLIC
+                ? searchVocabularyMapper.loadPublicDetailRow(entryId)
+                : searchVocabularyMapper.loadUserDetailRow(entryId);
         if (row == null) {
             throw new NotFoundException("Word not found");
         }
@@ -1487,11 +1524,13 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     private List<SearchDocumentVo> loadAllRows() {
-        return searchVocabularyMapper.loadAllRows();
+        List<SearchDocumentVo> rows = new ArrayList<>();
+        rows.addAll(searchVocabularyMapper.loadAllPublicRows());
+        rows.addAll(searchVocabularyMapper.loadAllUserRows());
+        return rows;
     }
 
-    // 插入或刷新单个公共词条。
-    private ImportOutcome importSingleWord(String word, boolean refreshExisting, boolean elasticsearchAvailable) {
+        private ImportOutcome importSingleWord(String word, boolean refreshExisting, boolean elasticsearchAvailable) {
         Long existingId = findExistingPublicEntryId(word);
         if (existingId != null && !refreshExisting) {
             return new ImportOutcome(ImportAction.SKIPPED, existingId, null);
@@ -1502,9 +1541,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             return new ImportOutcome(ImportAction.FAILED, existingId, "INCOMPLETE_OR_MISSING_DICTIONARY_PAYLOAD");
         }
 
-        long wordbookId = ensurePublicWordbook();
         if (existingId == null) {
-            long entryId = createPublicEntry(wordbookId, payload);
+            long entryId = createPublicEntry(payload);
             syncPublicEntryToIndex(entryId, elasticsearchAvailable);
             return new ImportOutcome(ImportAction.IMPORTED, entryId, null);
         }
@@ -1571,28 +1609,32 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         int updated = 0;
         updated += normalizeVocabularyEntries();
         updated += normalizeWordbooks();
-        updated += normalizeImportTasks();
-        updated += normalizeStudyFocusAreas();
         return updated;
     }
 
-    // 在重建索引前，先规范化词条文本字段。
-    private int normalizeVocabularyEntries() {
-        List<VocabularyCleanupVo> rows = searchVocabularyMapper.loadVocabularyCleanupRows();
-
+        private int normalizeVocabularyEntries() {
         int updated = 0;
-        for (VocabularyCleanupVo row : rows) {
+        for (VocabularyCleanupVo row : searchVocabularyMapper.loadPublicVocabularyCleanupRows()) {
+            String phonetic = resolvePersistedPhonetic(row.getWord(), row.getPhonetic(), row.getImportSource());
+            String meaning = UserFacingTextNormalizer.normalizeMeaningText(row.getMeaningCn());
+            String example = UserFacingTextNormalizer.normalizeDisplayText(row.getExampleSentence());
+            if (!sameText(row.getPhonetic(), phonetic)
+                    || !sameText(row.getMeaningCn(), meaning)
+                    || !sameText(row.getExampleSentence(), example)) {
+                searchVocabularyMapper.updatePublicVocabularyCleanup(row.getId(), phonetic, meaning, example);
+                updated++;
+            }
+        }
+        for (VocabularyCleanupVo row : searchVocabularyMapper.loadUserVocabularyCleanupRows()) {
             String phonetic = resolvePersistedPhonetic(row.getWord(), row.getPhonetic(), row.getImportSource());
             String meaning = UserFacingTextNormalizer.normalizeMeaningText(row.getMeaningCn());
             String example = UserFacingTextNormalizer.normalizeDisplayText(row.getExampleSentence());
             String category = UserFacingTextNormalizer.normalizeMeaningText(row.getCategory());
-            String definitionEn = UserFacingTextNormalizer.normalizeDisplayText(row.getDefinitionEn());
             if (!sameText(row.getPhonetic(), phonetic)
                     || !sameText(row.getMeaningCn(), meaning)
                     || !sameText(row.getExampleSentence(), example)
-                    || !sameText(row.getCategory(), category)
-                    || !sameText(row.getDefinitionEn(), definitionEn)) {
-                searchVocabularyMapper.updateVocabularyCleanup(row.getId(), phonetic, meaning, example, category, definitionEn);
+                    || !sameText(row.getCategory(), category)) {
+                searchVocabularyMapper.updateUserVocabularyCleanup(row.getId(), phonetic, meaning, example, category);
                 updated++;
             }
         }
@@ -1617,8 +1659,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         return catalogEntry.phonetic();
     }
 
-    // 规范化词书名称和来源名称。
-    private int normalizeWordbooks() {
+        private int normalizeWordbooks() {
         List<WordbookCleanupVo> rows = searchWordbookMapper.loadWordbookCleanupRows();
 
         int updated = 0;
@@ -1632,45 +1673,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         }
         return updated;
     }
-
-    // 规范化导入任务里的文本字段。
-    private int normalizeImportTasks() {
-        List<ImportTaskCleanupVo> rows = searchImportTaskMapper.loadImportTaskCleanupRows();
-
-        int updated = 0;
-        for (ImportTaskCleanupVo row : rows) {
-            String sourceName = UserFacingTextNormalizer.normalizeDisplayText(row.getSourceName());
-            String errorMessage = row.getErrorMessage() == null ? null : UserFacingTextNormalizer.normalizeDisplayText(row.getErrorMessage());
-            if (!sameText(row.getSourceName(), sourceName) || !sameNullableText(row.getErrorMessage(), errorMessage)) {
-                searchImportTaskMapper.updateImportTaskCleanup(row.getTaskId(), sourceName, errorMessage);
-                updated++;
-            }
-        }
-        return updated;
-    }
-
-    // 规范化学习重点标签。
-    private int normalizeStudyFocusAreas() {
-        List<StudyFocusCleanupVo> rows = searchStudyFocusMapper.loadStudyFocusCleanupRows();
-
-        int updated = 0;
-        for (StudyFocusCleanupVo row : rows) {
-            String focusLabel = UserFacingTextNormalizer.normalizeDisplayText(row.getFocusLabel());
-            if (!sameText(row.getFocusLabel(), focusLabel)) {
-                searchStudyFocusMapper.updateStudyFocusCleanup(row.getId(), focusLabel);
-                updated++;
-            }
-        }
-        return updated;
-    }
-
     private boolean sameText(String raw, String normalized) {
-        String left = raw == null ? "" : raw;
-        String right = normalized == null ? "" : normalized;
-        return left.equals(right);
-    }
-
-    private boolean sameNullableText(String raw, String normalized) {
         String left = raw == null ? "" : raw;
         String right = normalized == null ? "" : normalized;
         return left.equals(right);
@@ -1701,8 +1704,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         ).subList(0, DEFAULT_BATCH_SIZE);
     }
 
-    private String buildSourceLabel(String visibility) {
-        return PUBLIC_VISIBILITY.equalsIgnoreCase(visibility) ? PUBLIC_SOURCE_LABEL : PRIVATE_SOURCE_LABEL;
+    private String buildSourceLabel(String entryType) {
+        return PUBLIC_ENTRY_TYPE.equalsIgnoreCase(entryType) ? PUBLIC_SOURCE_LABEL : PRIVATE_SOURCE_LABEL;
     }
 
     private boolean tryEnsureIndex() {
@@ -1727,8 +1730,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         sendWithoutBody("DELETE", "/" + INDEX_NAME, true);
     }
 
-    // 创建搜索、建议和详情查询共用的 Elasticsearch 索引。
-    private void createIndex() throws IOException, InterruptedException {
+        private void createIndex() throws IOException, InterruptedException {
         Map<String, Object> mappings = Map.of(
                 "settings", Map.of(
                         "analysis", Map.of(
@@ -1743,6 +1745,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 "mappings", Map.of(
                         "properties", Map.ofEntries(
                                 Map.entry("entryId", Map.of("type", "long")),
+                                Map.entry("entryType", Map.of("type", "keyword")),
                                 Map.entry("ownerUserId", Map.of("type", "long")),
                                 Map.entry("visibility", Map.of("type", "keyword")),
                                 Map.entry("wordbookId", Map.of("type", "long")),
@@ -1760,8 +1763,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                                 Map.entry("meaningCn", Map.of("type", "text")),
                                 Map.entry("exampleSentence", Map.of("type", "text")),
                                 Map.entry("category", Map.of("type", "text")),
-                                Map.entry("definitionEn", Map.of("type", "text")),
-                                Map.entry("tags", Map.of("type", "keyword")),
                                 Map.entry("bncRank", Map.of("type", "integer")),
                                 Map.entry("frqRank", Map.of("type", "integer")),
                                 Map.entry("wordfreqZipf", Map.of("type", "float")),
@@ -1773,21 +1774,19 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         sendJson("PUT", "/" + INDEX_NAME, mappings, true);
     }
 
-    // 规范化单条数据后写入 Elasticsearch。
-    private void indexDocument(SearchDocumentVo row) {
+        private void indexDocument(SearchDocumentVo row) {
         try {
             String normalizedWord = TextRepairUtils.repair(row.getWord());
             String normalizedPhonetic = SearchTextUtools.normalizePhonetic(row.getPhonetic());
             String normalizedMeaning = UserFacingTextNormalizer.normalizeMeaningText(row.getMeaningCn());
             String normalizedExample = UserFacingTextNormalizer.normalizeDisplayText(row.getExampleSentence());
             String normalizedCategory = UserFacingTextNormalizer.normalizeMeaningText(row.getCategory());
-            String normalizedDefinition = UserFacingTextNormalizer.normalizeDisplayText(row.getDefinitionEn());
-            String normalizedTags = UserFacingTextNormalizer.normalizeDisplayText(row.getTags());
             String normalizedDataQuality = UserFacingTextNormalizer.normalizeDisplayText(row.getDataQuality());
             String normalizedImportSource = SearchTextUtools.normalizeImportSource(row.getImportSource());
 
             Map<String, Object> document = new LinkedHashMap<>();
             document.put("entryId", row.getEntryId());
+            document.put("entryType", row.getEntryType());
             document.put("ownerUserId", row.getOwnerUserId());
             document.put("visibility", row.getVisibility());
             document.put("wordbookId", row.getWordbookId());
@@ -1799,14 +1798,12 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             document.put("meaningCn", normalizedMeaning);
             document.put("exampleSentence", normalizedExample);
             document.put("category", normalizedCategory);
-            document.put("definitionEn", normalizedDefinition);
-            document.put("tags", normalizedTags);
             document.put("bncRank", row.getBncRank());
             document.put("frqRank", row.getFrqRank());
             document.put("wordfreqZipf", row.getWordfreqZipf());
             document.put("dataQuality", normalizedDataQuality);
             document.put("importSource", normalizedImportSource);
-            sendJson("PUT", "/" + INDEX_NAME + "/_doc/" + row.getEntryId(), document, false);
+            sendJson("PUT", "/" + INDEX_NAME + "/_doc/" + row.getEntryType() + "-" + row.getEntryId(), document, false);
         } catch (IOException | InterruptedException exception) {
             throw new IllegalStateException("Failed to index Elasticsearch document", exception);
         }
@@ -1859,14 +1856,13 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
     private record SearchHitCandidate(
             long entryId,
+            String entryType,
             String word,
             String phonetic,
             String meaningCn,
             String source,
             String exampleSentence,
             String category,
-            String definitionEn,
-            String tags,
             Integer bncRank,
             Integer frqRank,
             Double wordfreqZipf,
@@ -1879,14 +1875,13 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
 
     private record RankedSearchHit(
             long entryId,
+            String entryType,
             String word,
             String phonetic,
             String meaningCn,
             String source,
             String exampleSentence,
             String category,
-            String definitionEn,
-            String tags,
             Integer bncRank,
             Integer frqRank,
             Double wordfreqZipf,
@@ -1904,8 +1899,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             String meaningCn,
             String exampleSentence,
             String category,
-            String definitionEn,
-            String tags,
             Integer bncRank,
             Integer frqRank,
             Double wordfreqZipf,
@@ -1922,8 +1915,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             String phonetic,
             String meaningCn,
             String category,
-            String definitionEn,
-            String tags,
             Integer bncRank,
             Integer frqRank,
             Double wordfreqZipf,
@@ -1941,6 +1932,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
 
     private record SuggestionCandidate(
             long entryId,
+            String entryType,
             String word,
             String visibility,
             Long ownerUserId,
@@ -1950,6 +1942,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     private record SearchScope(
+            String entryType,
             Long ownerUserId,
             String visibility,
             Long wordbookId,

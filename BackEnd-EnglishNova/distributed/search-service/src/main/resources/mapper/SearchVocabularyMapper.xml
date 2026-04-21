@@ -2,96 +2,154 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.nightfall.englishnova.search.mapper.SearchVocabularyMapper">
 
-    <sql id="documentColumns">
-        id AS entry_id,
-        user_id AS owner_user_id,
-        visibility,
-        wordbook_id,
-        word,
-        phonetic,
-        meaning_cn,
-        example_sentence,
-        category,
-        definition_en,
-        tags,
-        bnc_rank,
-        frq_rank,
-        wordfreq_zipf,
-        exchange_info,
-        data_quality,
-        import_source
-    </sql>
-
-    <update id="updateAudioUrl">
-        UPDATE vocabulary_entries
+    <update id="updatePublicAudioUrl">
+        UPDATE public_vocabulary_entries
         SET audio_url = #{audioUrl}
         WHERE id = #{entryId}
     </update>
 
-    <select id="listByUserAndWordbook" resultType="com.nightfall.englishnova.search.domain.vo.SearchDocumentVo">
-        SELECT <include refid="documentColumns"/>
-        FROM vocabulary_entries
+    <select id="listUserByWordbook" resultType="com.nightfall.englishnova.search.domain.vo.SearchDocumentVo">
+        SELECT
+            id AS entry_id,
+            'USER' AS entry_type,
+            user_id AS owner_user_id,
+            'PRIVATE' AS visibility,
+            wordbook_id,
+            word,
+            phonetic,
+            meaning_cn,
+            example_sentence,
+            category,
+            NULL AS bnc_rank,
+            NULL AS frq_rank,
+            NULL AS wordfreq_zipf,
+            NULL AS exchange_info,
+            NULL AS data_quality,
+            import_source
+        FROM user_vocabulary_entries
         WHERE user_id = #{userId} AND wordbook_id = #{wordbookId}
     </select>
 
     <select id="findExistingPublicEntryId" resultType="long">
         SELECT id
-        FROM vocabulary_entries
-        WHERE user_id = #{userId} AND visibility = #{visibility} AND LOWER(word) = LOWER(#{word})
+        FROM public_vocabulary_entries
+        WHERE LOWER(word) = LOWER(#{word})
         ORDER BY id ASC
         LIMIT 1
     </select>
 
     <insert id="insertPublicEntry" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO vocabulary_entries(
-            user_id, wordbook_id, word, phonetic, meaning_cn, example_sentence, category,
-            definition_en, tags, bnc_rank, frq_rank, wordfreq_zipf, exchange_info, data_quality,
-            difficulty, visibility, audio_url, import_source, created_at
+        INSERT INTO public_vocabulary_entries(
+            word, phonetic, meaning_cn, example_sentence,
+            bnc_rank, frq_rank, wordfreq_zipf, exchange_info, data_quality,
+            audio_url, import_source, created_at
         )
         VALUES (
-            #{userId}, #{wordbookId}, #{word}, #{phonetic}, #{meaningCn}, #{exampleSentence}, #{category},
-            #{definitionEn}, #{tags}, #{bncRank}, #{frqRank}, #{wordfreqZipf}, #{exchangeInfo}, #{dataQuality},
-            #{difficulty}, #{visibility}, #{audioUrl}, #{importSource}, CURRENT_TIMESTAMP
+            #{word}, #{phonetic}, #{meaningCn}, #{exampleSentence},
+            #{bncRank}, #{frqRank}, #{wordfreqZipf}, #{exchangeInfo}, #{dataQuality},
+            #{audioUrl}, #{importSource}, CURRENT_TIMESTAMP
         )
     </insert>
 
     <update id="updatePublicEntry">
-        UPDATE vocabulary_entries
+        UPDATE public_vocabulary_entries
         SET word = #{word},
             phonetic = #{phonetic},
             meaning_cn = #{meaningCn},
             example_sentence = #{exampleSentence},
-            category = #{category},
-            definition_en = #{definitionEn},
-            tags = #{tags},
             bnc_rank = #{bncRank},
             frq_rank = #{frqRank},
             wordfreq_zipf = #{wordfreqZipf},
             exchange_info = #{exchangeInfo},
             data_quality = #{dataQuality},
-            difficulty = #{difficulty},
             audio_url = #{audioUrl},
             import_source = #{importSource}
         WHERE id = #{entryId}
     </update>
 
-    <select id="findDocumentById" resultType="com.nightfall.englishnova.search.domain.vo.SearchDocumentVo">
-        SELECT <include refid="documentColumns"/>
-        FROM vocabulary_entries
+    <select id="findPublicDocumentById" resultType="com.nightfall.englishnova.search.domain.vo.SearchDocumentVo">
+        SELECT
+            id AS entry_id,
+            'PUBLIC' AS entry_type,
+            NULL AS owner_user_id,
+            'PUBLIC' AS visibility,
+            NULL AS wordbook_id,
+            word,
+            phonetic,
+            meaning_cn,
+            example_sentence,
+            NULL AS category,
+            bnc_rank,
+            frq_rank,
+            wordfreq_zipf,
+            exchange_info,
+            data_quality,
+            import_source
+        FROM public_vocabulary_entries
+        WHERE id = #{entryId}
+    </select>
+
+    <select id="findUserDocumentById" resultType="com.nightfall.englishnova.search.domain.vo.SearchDocumentVo">
+        SELECT
+            id AS entry_id,
+            'USER' AS entry_type,
+            user_id AS owner_user_id,
+            'PRIVATE' AS visibility,
+            wordbook_id,
+            word,
+            phonetic,
+            meaning_cn,
+            example_sentence,
+            category,
+            NULL AS bnc_rank,
+            NULL AS frq_rank,
+            NULL AS wordfreq_zipf,
+            NULL AS exchange_info,
+            NULL AS data_quality,
+            import_source
+        FROM user_vocabulary_entries
         WHERE id = #{entryId}
     </select>
 
     <select id="findPublicEntryId" resultType="long">
         SELECT id
-        FROM vocabulary_entries
-        WHERE user_id = #{userId} AND wordbook_id = #{wordbookId} AND LOWER(word) = LOWER(#{word})
+        FROM public_vocabulary_entries
+        WHERE LOWER(word) = LOWER(#{word})
         ORDER BY id DESC
         LIMIT 1
     </select>
 
-    <select id="loadDetailRow" resultType="com.nightfall.englishnova.search.domain.vo.DetailVo">
+    <select id="loadPublicDetailRow" resultType="com.nightfall.englishnova.search.domain.vo.DetailVo">
         SELECT
             v.id AS entry_id,
+            'PUBLIC' AS entry_type,
+            NULL AS owner_user_id,
+            NULL AS wordbook_id,
+            'English Nova Public Catalog' AS wordbook_name,
+            v.word,
+            v.phonetic,
+            v.meaning_cn,
+            v.example_sentence,
+            NULL AS category,
+            v.bnc_rank,
+            v.frq_rank,
+            v.wordfreq_zipf,
+            v.exchange_info,
+            v.data_quality,
+            NULL AS difficulty,
+            'PUBLIC' AS visibility,
+            v.audio_url,
+            v.import_source,
+            'ECDICT + dictionaryapi.dev' AS source_name
+        FROM public_vocabulary_entries v
+        WHERE v.id = #{entryId}
+        LIMIT 1
+    </select>
+
+    <select id="loadUserDetailRow" resultType="com.nightfall.englishnova.search.domain.vo.DetailVo">
+        SELECT
+            v.id AS entry_id,
+            'USER' AS entry_type,
             v.user_id AS owner_user_id,
             v.wordbook_id,
             w.name AS wordbook_name,
@@ -100,41 +158,102 @@
             v.meaning_cn,
             v.example_sentence,
             v.category,
-            v.definition_en,
-            v.tags,
-            v.bnc_rank,
-            v.frq_rank,
-            v.wordfreq_zipf,
-            v.exchange_info,
-            v.data_quality,
+            NULL AS bnc_rank,
+            NULL AS frq_rank,
+            NULL AS wordfreq_zipf,
+            NULL AS exchange_info,
+            NULL AS data_quality,
             v.difficulty,
-            v.visibility,
+            'PRIVATE' AS visibility,
             v.audio_url,
             v.import_source,
             w.source_name
-        FROM vocabulary_entries v
+        FROM user_vocabulary_entries v
         JOIN wordbooks w ON w.id = v.wordbook_id
         WHERE v.id = #{entryId}
         LIMIT 1
     </select>
 
-    <select id="loadAllRows" resultType="com.nightfall.englishnova.search.domain.vo.SearchDocumentVo">
-        SELECT <include refid="documentColumns"/>
-        FROM vocabulary_entries
+    <select id="loadAllPublicRows" resultType="com.nightfall.englishnova.search.domain.vo.SearchDocumentVo">
+        SELECT
+            id AS entry_id,
+            'PUBLIC' AS entry_type,
+            NULL AS owner_user_id,
+            'PUBLIC' AS visibility,
+            NULL AS wordbook_id,
+            word,
+            phonetic,
+            meaning_cn,
+            example_sentence,
+            NULL AS category,
+            bnc_rank,
+            frq_rank,
+            wordfreq_zipf,
+            exchange_info,
+            data_quality,
+            import_source
+        FROM public_vocabulary_entries
     </select>
 
-    <select id="loadVocabularyCleanupRows" resultType="com.nightfall.englishnova.search.domain.vo.VocabularyCleanupVo">
-        SELECT id, word, import_source, phonetic, meaning_cn, example_sentence, category, definition_en
-        FROM vocabulary_entries
+    <select id="loadAllUserRows" resultType="com.nightfall.englishnova.search.domain.vo.SearchDocumentVo">
+        SELECT
+            id AS entry_id,
+            'USER' AS entry_type,
+            user_id AS owner_user_id,
+            'PRIVATE' AS visibility,
+            wordbook_id,
+            word,
+            phonetic,
+            meaning_cn,
+            example_sentence,
+            category,
+            NULL AS bnc_rank,
+            NULL AS frq_rank,
+            NULL AS wordfreq_zipf,
+            NULL AS exchange_info,
+            NULL AS data_quality,
+            import_source
+        FROM user_vocabulary_entries
     </select>
 
-    <update id="updateVocabularyCleanup">
-        UPDATE vocabulary_entries
+    <select id="loadPublicVocabularyCleanupRows" resultType="com.nightfall.englishnova.search.domain.vo.VocabularyCleanupVo">
+        SELECT
+            id,
+            word,
+            import_source,
+            phonetic,
+            meaning_cn,
+            example_sentence,
+            '' AS category
+        FROM public_vocabulary_entries
+    </select>
+
+    <select id="loadUserVocabularyCleanupRows" resultType="com.nightfall.englishnova.search.domain.vo.VocabularyCleanupVo">
+        SELECT
+            id,
+            word,
+            import_source,
+            phonetic,
+            meaning_cn,
+            example_sentence,
+            category
+        FROM user_vocabulary_entries
+    </select>
+
+    <update id="updatePublicVocabularyCleanup">
+        UPDATE public_vocabulary_entries
+        SET phonetic = #{phonetic},
+            meaning_cn = #{meaningCn},
+            example_sentence = #{exampleSentence}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateUserVocabularyCleanup">
+        UPDATE user_vocabulary_entries
         SET phonetic = #{phonetic},
             meaning_cn = #{meaningCn},
             example_sentence = #{exampleSentence},
-            category = #{category},
-            definition_en = #{definitionEn}
+            category = #{category}
         WHERE id = #{id}
     </update>
 </mapper>

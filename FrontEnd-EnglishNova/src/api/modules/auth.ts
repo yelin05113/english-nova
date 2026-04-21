@@ -26,21 +26,21 @@ function withAuth(options?: ApiAuthOptions) {
 }
 
 async function login(payload: LoginRequest) {
-  return apiFetch<AuthTokenResponse>('/api/auth/login', {
+  return apiFetch<AuthTokenResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 async function register(payload: RegisterRequest) {
-  return apiFetch<AuthTokenResponse>('/api/auth/register', {
+  return apiFetch<AuthTokenResponse>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 async function me(options?: ApiAuthOptions) {
-  return apiFetch<AuthUser>('/api/auth/me', undefined, withAuth(options))
+  return apiFetch<AuthUser>('/auth/me', undefined, withAuth(options))
 }
 
 export const authApi = {

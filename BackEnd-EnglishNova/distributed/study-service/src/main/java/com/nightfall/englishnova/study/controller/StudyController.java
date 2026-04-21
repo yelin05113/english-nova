@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 学习相关 HTTP 接口控制器。提供今日学习计划与学习进度统计等端点。
  */
 @RestController
-@RequestMapping("/api/study")
+@RequestMapping({"/api/study", "/study"})
 public class StudyController {
 
     private final StudyAgendaService studyAgendaService;

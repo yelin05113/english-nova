@@ -19,6 +19,10 @@ public class SearchEntryDocument {
     @Field(type = FieldType.Long)
     private Long entryId;
 
+    /** Entry type: PUBLIC or USER. */
+    @Field(type = FieldType.Keyword)
+    private String entryType;
+
     /** 条目所属用户 ID。 */
     @Field(type = FieldType.Long)
     private Long ownerUserId;
@@ -57,6 +61,7 @@ public class SearchEntryDocument {
     public SearchEntryDocument(
             String id,
             Long entryId,
+            String entryType,
             Long ownerUserId,
             String visibility,
             Long wordbookId,
@@ -68,6 +73,7 @@ public class SearchEntryDocument {
     ) {
         this.id = id;
         this.entryId = entryId;
+        this.entryType = entryType;
         this.ownerUserId = ownerUserId;
         this.visibility = visibility;
         this.wordbookId = wordbookId;
@@ -92,6 +98,14 @@ public class SearchEntryDocument {
 
     public void setEntryId(Long entryId) {
         this.entryId = entryId;
+    }
+
+    public String getEntryType() {
+        return entryType;
+    }
+
+    public void setEntryType(String entryType) {
+        this.entryType = entryType;
     }
 
     public Long getOwnerUserId() {

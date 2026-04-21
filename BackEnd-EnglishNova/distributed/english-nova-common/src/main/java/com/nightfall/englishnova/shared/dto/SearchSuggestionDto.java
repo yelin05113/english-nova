@@ -6,6 +6,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record SearchSuggestionDto(
         @Schema(description = "Entry id")
         Long entryId,
+        @Schema(description = "Entry type")
+        String entryType,
         @Schema(description = "Word")
         String word,
         @Schema(description = "Visibility")

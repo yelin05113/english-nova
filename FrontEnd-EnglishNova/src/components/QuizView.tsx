@@ -13,9 +13,10 @@ interface Feedback {
 }
 
 export function QuizView() {
-  const { quizMode, setQuizMode, quizState, handleCreateQuiz, handleAnswer, advanceQuiz } = useAppStateContext()
+  const { quizMode, setQuizMode, quizState, creatingQuiz, handleCreateQuiz, handleAnswer, advanceQuiz } = useAppStateContext()
   const onQuizModeChange = (mode: QuizMode) => setQuizMode(mode)
-  const onCreateQuiz = () => void handleCreateQuiz()
+  const onCreateQuiz = () =>
+    void handleCreateQuiz(quizState?.session.targetType ?? 'USER_WORDBOOK', quizState?.session.targetId)
   const onAnswer = handleAnswer
   const onAdvance = advanceQuiz
   const [optionStates, setOptionStates] = useState<OptionState[]>([])
@@ -87,8 +88,8 @@ export function QuizView() {
             <option value="EN_TO_CN">英文选四个中文</option>
           </select>
         </label>
-        <button type="button" className="ghost" onClick={() => void onCreateQuiz()}>
-          重新开始
+        <button type="button" className="ghost" onClick={() => void onCreateQuiz()} disabled={creatingQuiz}>
+          {creatingQuiz ? '创建中...' : '重新开始'}
         </button>
       </div>
 

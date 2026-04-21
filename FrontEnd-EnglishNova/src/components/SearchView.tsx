@@ -44,7 +44,7 @@ export function SearchView() {
     setShowSuggestions(false)
     setDetailLoading(true)
     try {
-      const detail = await getWordDetail(item.entryId)
+      const detail = await getWordDetail(item.entryId, item.entryType)
       setSelectedDetail(detail)
       playAudio(detail)
     } finally {
@@ -111,7 +111,7 @@ export function SearchView() {
             <div className="suggestion-list">
               {searchSuggestions.map((item) => (
                 <button
-                  key={item.entryId}
+                  key={`${item.entryType}-${item.entryId}`}
                   type="button"
                   className="suggestion-item"
                   onClick={() => {
@@ -128,7 +128,7 @@ export function SearchView() {
         </label>
         <div className="list">
           {searchResult.hits.map((item) => (
-            <SearchCard key={item.entryId} item={item} onOpen={openDetail} />
+            <SearchCard key={`${item.entryType}-${item.entryId}`} item={item} onOpen={openDetail} />
           ))}
         </div>
       </div>

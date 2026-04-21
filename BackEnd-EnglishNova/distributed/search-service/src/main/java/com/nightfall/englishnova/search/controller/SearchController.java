@@ -11,6 +11,7 @@ import com.nightfall.englishnova.shared.dto.PublicCatalogImportResultDto;
 import com.nightfall.englishnova.shared.dto.SearchSuggestionDto;
 import com.nightfall.englishnova.shared.dto.WordDetailDto;
 import com.nightfall.englishnova.shared.dto.WordSearchResponseDto;
+import com.nightfall.englishnova.shared.enums.VocabularyEntryType;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,7 +27,7 @@ import java.util.List;
  * 搜索相关 HTTP 接口控制器。提供单词搜索、搜索建议、词条详情及公共词库导入等端点。
  */
 @RestController
-@RequestMapping("/api/search")
+@RequestMapping({"/api/search", "/search"})
 public class SearchController {
 
     private final SearchCatalogService searchCatalogService;
@@ -84,10 +85,11 @@ public class SearchController {
     @GetMapping("/words/{entryId}")
     public ApiResponse<WordDetailDto> wordDetail(
             @PathVariable long entryId,
+            @RequestParam VocabularyEntryType entryType,
             HttpServletRequest request
     ) {
         CurrentUser user = RequestUserExtractor.optional(request);
-        return ApiResponse.success(searchCatalogService.getWordDetail(entryId, user));
+        return ApiResponse.success(searchCatalogService.getWordDetail(entryId, entryType, user));
     }
 
     /**

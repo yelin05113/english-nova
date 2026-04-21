@@ -17,7 +17,6 @@ public class VocabularyEntryPo {
     private String exampleSentence;
     private String category;
     private int difficulty;
-    private String visibility;
     private String audioUrl;
     private String importSource;
 }

@@ -10,6 +10,7 @@ import org.apache.ibatis.annotations.Param;
 public interface QuizAttemptMapper {
     void insertAttempt(AttemptPo row);
     AttemptVo findByUserSessionAndId(@Param("userId") long userId, @Param("sessionId") String sessionId, @Param("attemptId") long attemptId);
-    QuestionVo loadNextQuestion(@Param("sessionId") String sessionId);
+    QuestionVo loadCurrentQuestion(@Param("sessionId") String sessionId);
+    void recordWrongSubmission(@Param("attemptId") long attemptId);
     void markSelected(@Param("attemptId") long attemptId, @Param("selectedOption") String selectedOption, @Param("correct") boolean correct);
 }

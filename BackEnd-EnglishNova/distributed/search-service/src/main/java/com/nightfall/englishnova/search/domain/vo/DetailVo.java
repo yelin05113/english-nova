@@ -9,22 +9,21 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DetailVo {
     private long entryId;
+    private String entryType;
     private Long ownerUserId;
-    private long wordbookId;
+    private Long wordbookId;
     private String wordbookName;
     private String word;
     private String phonetic;
     private String meaningCn;
     private String exampleSentence;
     private String category;
-    private String definitionEn;
-    private String tags;
     private Integer bncRank;
     private Integer frqRank;
     private Double wordfreqZipf;
     private String exchangeInfo;
     private String dataQuality;
-    private int difficulty;
+    private Integer difficulty;
     private String visibility;
     private String audioUrl;
     private String importSource;

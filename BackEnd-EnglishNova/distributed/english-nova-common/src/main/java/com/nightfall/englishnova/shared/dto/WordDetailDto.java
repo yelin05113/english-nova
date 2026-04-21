@@ -6,10 +6,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record WordDetailDto(
         @Schema(description = "Entry id")
         long entryId,
+        @Schema(description = "Entry type")
+        String entryType,
         @Schema(description = "Owner user id")
         Long ownerUserId,
         @Schema(description = "Wordbook id")
-        long wordbookId,
+        Long wordbookId,
         @Schema(description = "Wordbook name")
         String wordbookName,
         @Schema(description = "Word")
@@ -22,10 +24,6 @@ public record WordDetailDto(
         String exampleSentence,
         @Schema(description = "Category")
         String category,
-        @Schema(description = "English definition")
-        String definitionEn,
-        @Schema(description = "Tags")
-        String tags,
         @Schema(description = "BNC rank")
         Integer bncRank,
         @Schema(description = "FRQ rank")
@@ -37,7 +35,7 @@ public record WordDetailDto(
         @Schema(description = "Data quality")
         String dataQuality,
         @Schema(description = "Difficulty level")
-        int difficulty,
+        Integer difficulty,
         @Schema(description = "Visibility")
         String visibility,
         @Schema(description = "Source label")

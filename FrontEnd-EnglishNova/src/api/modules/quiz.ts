@@ -3,6 +3,7 @@ import type { ImportPlatform } from './imports'
 
 export type QuizMode = 'CN_TO_EN' | 'EN_TO_CN' | 'MIXED'
 export type PromptType = 'CN_TO_EN' | 'EN_TO_CN'
+export type QuizTargetType = 'USER_WORDBOOK' | 'PUBLIC_WORDBOOK'
 
 export interface WordbookSummary {
   id: number
@@ -45,6 +46,8 @@ export interface QuizQuestion {
 export interface QuizSession {
   id: string
   wordbookId: number
+  targetType: QuizTargetType
+  targetId: number
   mode: QuizMode
   totalQuestions: number
   answeredQuestions: number
@@ -66,7 +69,8 @@ export interface QuizAnswerResult {
 }
 
 export interface CreateQuizSessionRequest {
-  wordbookId: number
+  targetType: QuizTargetType
+  targetId: number
   mode: QuizMode
 }
 
@@ -80,20 +84,20 @@ function withAuth(options?: ApiAuthOptions) {
 }
 
 async function listWordbooks(options?: ApiAuthOptions) {
-  return apiFetch<WordbookSummary[]>('/api/wordbooks', undefined, withAuth(options))
+  return apiFetch<WordbookSummary[]>('/wordbooks', undefined, withAuth(options))
 }
 
 async function listWordbookEntries(wordbookId: number, options?: ApiAuthOptions) {
-  return apiFetch<VocabularyEntry[]>(`/api/wordbooks/${wordbookId}/entries`, undefined, withAuth(options))
+  return apiFetch<VocabularyEntry[]>(`/wordbooks/${wordbookId}/entries`, undefined, withAuth(options))
 }
 
 async function getWordbookProgress(wordbookId: number, options?: ApiAuthOptions) {
-  return apiFetch<WordbookProgress>(`/api/wordbooks/${wordbookId}/progress`, undefined, withAuth(options))
+  return apiFetch<WordbookProgress>(`/wordbooks/${wordbookId}/progress`, undefined, withAuth(options))
 }
 
 async function createSession(payload: CreateQuizSessionRequest, options?: ApiAuthOptions) {
   return apiFetch<QuizSessionState>(
-    '/api/quiz/sessions',
+    '/quiz/sessions',
     {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -108,7 +112,7 @@ async function answerQuestion(
   options?: ApiAuthOptions,
 ) {
   return apiFetch<QuizAnswerResult>(
-    `/api/quiz/sessions/${sessionId}/answers`,
+    `/quiz/sessions/${sessionId}/answers`,
     {
       method: 'POST',
       body: JSON.stringify(payload),

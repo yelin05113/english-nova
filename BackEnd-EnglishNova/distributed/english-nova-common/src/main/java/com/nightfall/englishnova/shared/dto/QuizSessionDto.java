@@ -1,14 +1,19 @@
 package com.nightfall.englishnova.shared.dto;
 
 import com.nightfall.englishnova.shared.enums.QuizMode;
+import com.nightfall.englishnova.shared.enums.QuizTargetType;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(name = "QuizSessionDto", description = "Quiz session summary")
 public record QuizSessionDto(
         @Schema(description = "Session id")
         String id,
-        @Schema(description = "Wordbook id")
+        @Schema(description = "Legacy wordbook id alias")
         long wordbookId,
+        @Schema(description = "Target type")
+        QuizTargetType targetType,
+        @Schema(description = "Target id")
+        long targetId,
         @Schema(description = "Quiz mode")
         QuizMode mode,
         @Schema(description = "Total number of questions")

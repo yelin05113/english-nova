@@ -3,10 +3,19 @@ export function resolveGatewayProxyTarget(env) {
 }
 
 export function createApiProxy(env) {
-  return {
-    '/api': {
-      target: resolveGatewayProxyTarget(env),
-      changeOrigin: true,
-    },
+  const target = resolveGatewayProxyTarget(env)
+  const proxy = {}
+  for (const path of [
+    '^/auth/(login|register|me)$',
+    '^/system/',
+    '^/study/',
+    '^/search/',
+    '^/public-wordbooks',
+    '^/imports/(presets|files)$',
+    '^/wordbooks',
+    '^/quiz/sessions',
+  ]) {
+    proxy[path] = { target, changeOrigin: true }
   }
+  return proxy
 }

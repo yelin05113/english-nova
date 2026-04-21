@@ -1,25 +1,79 @@
 import { useDeferredValue, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import type { ApiAuthOptions } from '../api/client'
 import { authApi, type AuthUser } from '../api/modules/auth'
-import { importApi, type ImportPlatform, type ImportPreset, type ImportTask } from '../api/modules/imports'
+import { importApi, type ImportPlatform, type ImportPreset } from '../api/modules/imports'
 import {
   quizApi,
   type QuizAnswerResult,
   type QuizMode,
   type QuizSessionState,
+  type QuizTargetType,
   type VocabularyEntry,
   type WordbookProgress,
   type WordbookSummary,
 } from '../api/modules/quiz'
-import { searchApi, type SearchSuggestion, type WordSearchResponse } from '../api/modules/search'
+import {
+  searchApi,
+  type PublicWordbook,
+  type PublicWordbookEntry,
+  type SearchEntryType,
+  type SearchSuggestion,
+  type WordSearchResponse,
+} from '../api/modules/search'
 import { studyApi, type StudyAgenda, type StudyProgress } from '../api/modules/study'
 import { systemApi, type SystemOverview } from '../api/modules/system'
-import { DEFAULT_IMPORT_PLATFORM, TOKEN_KEY } from '../constants'
+import { DEFAULT_IMPORT_PLATFORM, TOKEN_KEY, TOKEN_TTL_MS } from '../constants'
+
+interface StoredAuthSession {
+  token: string
+  expiresAt: number
+}
+
+function readStoredSession(): StoredAuthSession | null {
+  localStorage.removeItem(TOKEN_KEY)
+
+  const raw = sessionStorage.getItem(TOKEN_KEY)
+  if (!raw) {
+    return null
+  }
+
+  try {
+    const session = JSON.parse(raw) as StoredAuthSession
+    if (!session.token || typeof session.expiresAt !== 'number' || session.expiresAt <= Date.now()) {
+      sessionStorage.removeItem(TOKEN_KEY)
+      return null
+    }
+    return session
+  } catch {
+    sessionStorage.removeItem(TOKEN_KEY)
+    return null
+  }
+}
+
+function createStoredSession(token: string): StoredAuthSession {
+  return {
+    token,
+    expiresAt: Date.now() + TOKEN_TTL_MS,
+  }
+}
+
+function persistSession(session: StoredAuthSession) {
+  localStorage.removeItem(TOKEN_KEY)
+  sessionStorage.setItem(TOKEN_KEY, JSON.stringify(session))
+}
+
+function clearStoredToken() {
+  localStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+}
 
 export function useAppState() {
   const navigate = useNavigate()
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) ?? '')
+  const location = useLocation()
+  const [storedSession, setStoredSession] = useState<StoredAuthSession | null>(readStoredSession)
+  const [token, setToken] = useState(() => readStoredSession()?.token ?? '')
+  const [tokenExpiresAt, setTokenExpiresAt] = useState(() => readStoredSession()?.expiresAt ?? 0)
   const [user, setUser] = useState<AuthUser | null>(null)
 
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login')
@@ -28,9 +82,11 @@ export function useAppState() {
   const [agenda, setAgenda] = useState<StudyAgenda | null>(null)
   const [progress, setProgress] = useState<StudyProgress | null>(null)
   const [presets, setPresets] = useState<ImportPreset[]>([])
-  const [tasks, setTasks] = useState<ImportTask[]>([])
   const [wordbooks, setWordbooks] = useState<WordbookSummary[]>([])
   const [entries, setEntries] = useState<VocabularyEntry[]>([])
+  const [publicWordbooks, setPublicWordbooks] = useState<PublicWordbook[]>([])
+  const [publicWordbookEntries, setPublicWordbookEntries] = useState<PublicWordbookEntry[]>([])
+  const [selectedPublicWordbookId, setSelectedPublicWordbookId] = useState<number | null>(null)
   const [wordbookProgress, setWordbookProgress] = useState<WordbookProgress | null>(null)
   const [selectedWordbookId, setSelectedWordbookId] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -43,6 +99,9 @@ export function useAppState() {
   const [librarySearchSuggestions, setLibrarySearchSuggestions] = useState<SearchSuggestion[]>([])
   const [quizMode, setQuizMode] = useState<QuizMode>('MIXED')
   const [quizState, setQuizState] = useState<QuizSessionState | null>(null)
+  const [creatingQuiz, setCreatingQuiz] = useState(false)
+  const [subscribingPublicWordbookId, setSubscribingPublicWordbookId] = useState<number | null>(null)
+  const [resettingPublicWordbookId, setResettingPublicWordbookId] = useState<number | null>(null)
 
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -62,19 +121,26 @@ export function useAppState() {
   }
 
   function clearAuth() {
-    localStorage.removeItem(TOKEN_KEY)
+    clearStoredToken()
+    setStoredSession(null)
     setToken('')
+    setTokenExpiresAt(0)
     setUser(null)
     navigate('/auth')
     setAgenda(null)
     setProgress(null)
     setPresets([])
-    setTasks([])
     setWordbooks([])
     setEntries([])
+    setPublicWordbooks([])
+    setPublicWordbookEntries([])
+    setSelectedPublicWordbookId(null)
     setWordbookProgress(null)
     setSelectedWordbookId(null)
     setQuizState(null)
+    setCreatingQuiz(false)
+    setSubscribingPublicWordbookId(null)
+    setResettingPublicWordbookId(null)
     setSearchResult({ hits: [] })
     setSearchSuggestions([])
     setLibrarySearchQuery('')
@@ -87,22 +153,40 @@ export function useAppState() {
     setLoading(true)
     try {
       const options = authOptions(authToken)
-      const [me, system, study, summary, presetData, taskData, wordbookData] = await Promise.all([
-        authApi.me(options),
-        systemApi.getOverview(),
-        studyApi.getAgenda(options),
-        studyApi.getProgress(options),
-        importApi.listPresets(options),
-        importApi.listTasks(options),
-        quizApi.listWordbooks(options),
-      ])
+      const me = await authApi.me(options)
       setUser(me)
-      setOverview(system)
-      setAgenda(study)
-      setProgress(summary)
+
+      const [systemResult, studyResult, progressResult, presetResult, wordbookResult, publicWordbookResult] =
+        await Promise.allSettled([
+          systemApi.getOverview(),
+          studyApi.getAgenda(options),
+          studyApi.getProgress(options),
+          importApi.listPresets(options),
+          quizApi.listWordbooks(options),
+          searchApi.listPublicWordbooks(options),
+        ])
+
+      const presetData = presetResult.status === 'fulfilled' ? presetResult.value : []
+      const wordbookData = wordbookResult.status === 'fulfilled' ? wordbookResult.value : []
+      const publicWordbookData = publicWordbookResult.status === 'fulfilled' ? publicWordbookResult.value : []
+
+      if (systemResult.status === 'fulfilled') {
+        setOverview(systemResult.value)
+      }
+      if (studyResult.status === 'fulfilled') {
+        setAgenda(studyResult.value)
+      }
+      if (progressResult.status === 'fulfilled') {
+        setProgress(progressResult.value)
+      }
       setPresets(presetData)
-      setTasks(taskData)
       setWordbooks(wordbookData)
+      setPublicWordbooks(publicWordbookData)
+      setSelectedPublicWordbookId((current) =>
+        current && publicWordbookData.some((item) => item.id === current)
+          ? current
+          : (publicWordbookData[0]?.id ?? null),
+      )
       setSelectedPlatform(
         presetData.find((preset) => preset.platform === 'ANKI')?.platform ?? DEFAULT_IMPORT_PLATFORM,
       )
@@ -111,13 +195,61 @@ export function useAppState() {
       )
       if (nextPath) {
         navigate(nextPath)
-      } else if (!user) {
-        navigate(wordbookData.length ? '/library' : '/imports')
+      } else if (location.pathname === '/auth' || location.pathname === '/') {
+        navigate('/library')
       }
+
+      const firstFailedResult = [
+        systemResult,
+        studyResult,
+        progressResult,
+        presetResult,
+        wordbookResult,
+      ].find((result) => result.status === 'rejected')
+
+      if (firstFailedResult?.status === 'rejected') {
+        setError(
+          firstFailedResult.reason instanceof Error
+            ? firstFailedResult.reason.message
+            : 'Failed to load part of the workspace',
+        )
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to initialize the workspace')
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (!token) return
+
+    const remainingMs = tokenExpiresAt - Date.now()
+    if (remainingMs <= 0) {
+      clearAuth()
+      setError('Login expired after 30 minutes, please sign in again')
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      clearAuth()
+      setError('Login expired after 30 minutes, please sign in again')
+    }, remainingMs)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [token, tokenExpiresAt])
+
+  useEffect(() => {
+    if (storedSession) {
+      setToken(storedSession.token)
+      setTokenExpiresAt(storedSession.expiresAt)
+      return
+    }
+    setToken('')
+    setTokenExpiresAt(0)
+  }, [storedSession])
 
   useEffect(() => {
     let alive = true
@@ -141,7 +273,11 @@ export function useAppState() {
   }, [])
 
   useEffect(() => {
-    if (!token || !selectedWordbookId) return
+    if (!token || !selectedWordbookId) {
+      setEntries([])
+      setWordbookProgress(null)
+      return
+    }
     let cancelled = false
     ;(async () => {
       try {
@@ -164,6 +300,30 @@ export function useAppState() {
       cancelled = true
     }
   }, [token, selectedWordbookId])
+
+  useEffect(() => {
+    if (!token || !selectedPublicWordbookId) {
+      setPublicWordbookEntries([])
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const entryData = await searchApi.listPublicWordbookEntries(selectedPublicWordbookId, authOptions())
+        if (!cancelled) {
+          setPublicWordbookEntries(entryData)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load the public wordbook')
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [token, selectedPublicWordbookId])
 
   useEffect(() => {
     if (!token) return
@@ -291,8 +451,9 @@ export function useAppState() {
     setError(null)
     try {
       const result = await authApi.login({ account, password: loginPassword })
-      localStorage.setItem(TOKEN_KEY, result.accessToken)
-      setToken(result.accessToken)
+      const session = createStoredSession(result.accessToken)
+      persistSession(session)
+      setStoredSession(session)
       setUser(result.user)
       await loadPrivateData('/library', result.accessToken)
     } catch (err) {
@@ -308,8 +469,9 @@ export function useAppState() {
         email: registerEmail,
         password: registerPassword,
       })
-      localStorage.setItem(TOKEN_KEY, result.accessToken)
-      setToken(result.accessToken)
+      const session = createStoredSession(result.accessToken)
+      persistSession(session)
+      setStoredSession(session)
       setUser(result.user)
       setSourceName(`${result.user.username}-wordbook`)
       await loadPrivateData('/imports', result.accessToken)
@@ -345,23 +507,32 @@ export function useAppState() {
     }
   }
 
-  async function handleCreateQuiz(wordbookId?: number) {
-    const targetWordbookId = wordbookId ?? selectedWordbookId
-    if (!targetWordbookId) {
-      setError('Please select a wordbook first')
+  async function handleCreateQuiz(targetType: QuizTargetType = 'USER_WORDBOOK', targetId?: number) {
+    const resolvedTargetId =
+      targetId ?? (targetType === 'PUBLIC_WORDBOOK' ? selectedPublicWordbookId : selectedWordbookId)
+    if (!resolvedTargetId) {
+      setError(targetType === 'PUBLIC_WORDBOOK' ? 'Please select a public wordbook first' : 'Please select a wordbook first')
+      return
+    }
+    if (creatingQuiz) {
       return
     }
     setError(null)
-    setMessage(null)
+    setMessage('Creating quiz session...')
+    setCreatingQuiz(true)
     try {
       const result = await quizApi.createSession(
-        { wordbookId: targetWordbookId, mode: quizMode },
+        { targetType, targetId: resolvedTargetId, mode: quizMode },
         authOptions(),
       )
       setQuizState(result)
+      setMessage(null)
       navigate('/quiz')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start quiz')
+      setMessage(null)
+    } finally {
+      setCreatingQuiz(false)
     }
   }
 
@@ -389,8 +560,53 @@ export function useAppState() {
     void loadPrivateData()
   }
 
-  async function getWordDetail(entryId: number) {
-    return searchApi.getWordDetail(entryId, authOptions())
+  async function getWordDetail(entryId: number, entryType: SearchEntryType = 'PUBLIC') {
+    return searchApi.getWordDetailByType(entryId, entryType, authOptions())
+  }
+
+  async function handleSubscribePublicWordbook(publicWordbookId = selectedPublicWordbookId) {
+    if (!publicWordbookId) {
+      setError('Please select a public wordbook first')
+      return
+    }
+    setError(null)
+    setMessage('Subscribing to public wordbook...')
+    setSubscribingPublicWordbookId(publicWordbookId)
+    try {
+      const subscribed = await searchApi.subscribePublicWordbook(publicWordbookId, authOptions())
+      setMessage(`Subscribed to ${subscribed.name}.`)
+      await loadPrivateData('/library')
+      setSelectedPublicWordbookId(subscribed.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to subscribe to the public wordbook')
+      setMessage(null)
+    } finally {
+      setSubscribingPublicWordbookId(null)
+    }
+  }
+
+  async function handleResetPublicWordbookProgress(publicWordbookId = selectedPublicWordbookId) {
+    if (!publicWordbookId) {
+      setError('Please select a public wordbook first')
+      return
+    }
+    setError(null)
+    setMessage('Resetting public wordbook progress...')
+    setResettingPublicWordbookId(publicWordbookId)
+    try {
+      const reset = await searchApi.resetPublicWordbookProgress(publicWordbookId, authOptions())
+      setMessage(`Reset progress for ${reset.name}.`)
+      if (quizState?.session.targetType === 'PUBLIC_WORDBOOK' && quizState.session.targetId === publicWordbookId) {
+        setQuizState(null)
+      }
+      await loadPrivateData('/library')
+      setSelectedPublicWordbookId(reset.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset public wordbook progress')
+      setMessage(null)
+    } finally {
+      setResettingPublicWordbookId(null)
+    }
   }
 
   function pickSearchSuggestion(value: string) {
@@ -405,6 +621,7 @@ export function useAppState() {
 
   const preset = presets.find((item) => item.platform === selectedPlatform)
   const selectedWordbook = wordbooks.find((item) => item.id === selectedWordbookId) ?? null
+  const selectedPublicWordbook = publicWordbooks.find((item) => item.id === selectedPublicWordbookId) ?? null
 
   return {
     token,
@@ -416,9 +633,15 @@ export function useAppState() {
     agenda,
     progress,
     presets,
-    tasks,
     wordbooks,
     entries,
+    publicWordbooks,
+    publicWordbookEntries,
+    selectedPublicWordbookId,
+    setSelectedPublicWordbookId,
+    selectedPublicWordbook,
+    subscribingPublicWordbookId,
+    resettingPublicWordbookId,
     wordbookProgress,
     selectedWordbookId,
     setSelectedWordbookId,
@@ -435,6 +658,7 @@ export function useAppState() {
     quizMode,
     setQuizMode,
     quizState,
+    creatingQuiz,
     message,
     error,
     loading,
@@ -459,6 +683,8 @@ export function useAppState() {
     handleLogin,
     handleRegister,
     handleImport,
+    handleSubscribePublicWordbook,
+    handleResetPublicWordbookProgress,
     handleCreateQuiz,
     handleAnswer,
     advanceQuiz,
