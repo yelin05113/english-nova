@@ -448,9 +448,11 @@ export function useAppState() {
   }, [token, selectedWordbookId, librarySearchQuery])
 
   async function handleLogin() {
+    if (loading) return
     setError(null)
+    setLoading(true)
     try {
-      const result = await authApi.login({ account, password: loginPassword })
+      const result = await authApi.login({ account: account.trim(), password: loginPassword })
       const session = createStoredSession(result.accessToken)
       persistSession(session)
       setStoredSession(session)
@@ -458,15 +460,19 @@ export function useAppState() {
       await loadPrivateData('/library', result.accessToken)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
+    } finally {
+      setLoading(false)
     }
   }
 
   async function handleRegister() {
+    if (loading) return
     setError(null)
+    setLoading(true)
     try {
       const result = await authApi.register({
-        username: registerUsername,
-        email: registerEmail,
+        username: registerUsername.trim(),
+        email: registerEmail.trim(),
         password: registerPassword,
       })
       const session = createStoredSession(result.accessToken)
@@ -477,6 +483,52 @@ export function useAppState() {
       await loadPrivateData('/imports', result.accessToken)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Register failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleUpdateProfile(payload: { username: string; avatarUrl: string | null }) {
+    if (!token) return
+    setError(null)
+    setMessage(null)
+    setLoading(true)
+    try {
+      const result = await authApi.updateProfile(payload, authOptions())
+      const session = createStoredSession(result.accessToken)
+      persistSession(session)
+      setStoredSession(session)
+      setToken(result.accessToken)
+      setTokenExpiresAt(session.expiresAt)
+      setUser(result.user)
+      setMessage('个人资料已更新。')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update profile')
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleUploadAvatar(file: File) {
+    if (!token) return
+    setError(null)
+    setMessage(null)
+    setLoading(true)
+    try {
+      const result = await authApi.uploadAvatar(file, authOptions())
+      const session = createStoredSession(result.accessToken)
+      persistSession(session)
+      setStoredSession(session)
+      setToken(result.accessToken)
+      setTokenExpiresAt(session.expiresAt)
+      setUser(result.user)
+      setMessage('头像已更新。')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload avatar')
+      throw err
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -682,6 +734,8 @@ export function useAppState() {
     selectedWordbook,
     handleLogin,
     handleRegister,
+    handleUpdateProfile,
+    handleUploadAvatar,
     handleImport,
     handleSubscribePublicWordbook,
     handleResetPublicWordbookProgress,

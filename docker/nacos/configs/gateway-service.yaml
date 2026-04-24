@@ -8,6 +8,10 @@ spring:
               uri: lb://auth-service
               predicates:
                 - Path=/api/auth/**,/auth/**
+            - id: uploaded-images
+              uri: lb://auth-service
+              predicates:
+                - Path=/upload/images/**
             - id: system-service
               uri: lb://system-service
               predicates:

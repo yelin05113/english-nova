@@ -12,5 +12,9 @@ public interface UserMapper extends BaseMapper<UserPo> {
 
     int countByEmail(@Param("email") String email);
 
+    int countByUsernameExceptId(@Param("username") String username, @Param("userId") long userId);
+
     UserPo findByAccount(@Param("account") String account, @Param("emailAccount") String emailAccount);
+
+    int updateProfile(@Param("userId") long userId, @Param("username") String username, @Param("avatarUrl") String avatarUrl);
 }

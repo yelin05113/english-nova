@@ -31,6 +31,7 @@ public class GatewayJwtFilter implements GlobalFilter, Ordered {
             "/auth/register",
             "/api/system/overview",
             "/system/overview",
+            "/upload/images/",
             "/actuator/health"
     );
     private static final List<String> OPTIONAL_TOKEN_PATHS = List.of(

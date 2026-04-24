@@ -6,7 +6,8 @@ export function createApiProxy(env) {
   const target = resolveGatewayProxyTarget(env)
   const proxy = {}
   for (const path of [
-    '^/auth/(login|register|me)$',
+    '^/auth/(login|register|me|profile|profile/avatar)$',
+    '^/upload/images/',
     '^/system/',
     '^/study/',
     '^/search/',

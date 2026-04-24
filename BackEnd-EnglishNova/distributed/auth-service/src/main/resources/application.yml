@@ -1,6 +1,10 @@
 spring:
   application:
     name: auth-service
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
   config:
     import: optional:nacos:${spring.application.name}.yaml
   datasource:

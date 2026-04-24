@@ -144,6 +144,7 @@ CREATE TABLE `users` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `username` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
   `email` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `avatar_url` varchar(512) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `password_hash` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
   `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ACTIVE',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
