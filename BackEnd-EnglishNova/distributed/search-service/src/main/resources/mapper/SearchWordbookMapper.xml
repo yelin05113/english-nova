@@ -8,35 +8,137 @@
         WHERE user_id = #{userId} AND id = #{wordbookId}
     </select>
 
-    <select id="findPublicWordbookId" resultType="long">
-        SELECT id
-        FROM wordbooks
-        WHERE user_id = #{userId} AND name = #{name}
-        ORDER BY id ASC
+    <select id="listPublicWordbooks" resultType="com.nightfall.englishnova.search.domain.vo.PublicWordbookRow">
+        SELECT
+            pw.id,
+            pw.name,
+            pw.source_name,
+            pw.source_url,
+            pw.license_name,
+            pw.license_url,
+            pw.tag,
+            pw.word_count,
+            CASE WHEN upw.id IS NULL THEN 0 ELSE 1 END AS subscribed,
+            COALESCE(upw.completed_count, 0) AS completed_count,
+            COALESCE(upw.wrong_count, 0) AS wrong_count,
+            CASE
+                WHEN upw.id IS NULL THEN 1
+                WHEN upw.current_sort_order >= pw.word_count THEN pw.word_count + 1
+                ELSE upw.current_sort_order + 1
+            END AS next_sort_order,
+            pw.created_at,
+            pw.updated_at
+        FROM public_wordbooks pw
+        LEFT JOIN user_public_wordbooks upw
+            ON upw.public_wordbook_id = pw.id
+           AND upw.user_id = #{userId}
+        ORDER BY FIELD(pw.tag, 'cet4', 'cet6', 'ky', 'toefl', 'ielts', 'gre'), pw.name
+    </select>
+
+    <select id="findPublicWordbook" resultType="com.nightfall.englishnova.search.domain.vo.PublicWordbookRow">
+        SELECT
+            id,
+            name,
+            source_name,
+            source_url,
+            license_name,
+            license_url,
+            tag,
+            word_count,
+            created_at,
+            updated_at
+        FROM public_wordbooks
+        WHERE id = #{publicWordbookId}
         LIMIT 1
     </select>
 
-    <insert id="insertPublicWordbook" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO wordbooks(user_id, name, platform, source_name, import_source, word_count, created_at)
-        VALUES (#{userId}, #{name}, #{platform}, #{sourceName}, #{importSource}, 0, CURRENT_TIMESTAMP)
+    <select id="findUserPublicWordbook" resultType="com.nightfall.englishnova.search.domain.vo.PublicWordbookRow">
+        SELECT
+            pw.id,
+            pw.name,
+            pw.source_name,
+            pw.source_url,
+            pw.license_name,
+            pw.license_url,
+            pw.tag,
+            pw.word_count,
+            CASE WHEN upw.id IS NULL THEN 0 ELSE 1 END AS subscribed,
+            COALESCE(upw.completed_count, 0) AS completed_count,
+            COALESCE(upw.wrong_count, 0) AS wrong_count,
+            CASE
+                WHEN upw.id IS NULL THEN 1
+                WHEN upw.current_sort_order >= pw.word_count THEN pw.word_count + 1
+                ELSE upw.current_sort_order + 1
+            END AS next_sort_order,
+            pw.created_at,
+            pw.updated_at
+        FROM public_wordbooks pw
+        LEFT JOIN user_public_wordbooks upw
+            ON upw.public_wordbook_id = pw.id
+           AND upw.user_id = #{userId}
+        WHERE pw.id = #{publicWordbookId}
+        LIMIT 1
+    </select>
+
+    <select id="listPublicWordbookEntries" resultType="com.nightfall.englishnova.search.domain.vo.PublicWordbookEntryRow">
+        SELECT
+            v.id AS public_entry_id,
+            m.sort_order,
+            v.word,
+            v.phonetic,
+            v.meaning_cn,
+            v.example_sentence,
+            v.bnc_rank,
+            v.frq_rank,
+            v.wordfreq_zipf
+        FROM public_wordbook_entries m
+        JOIN public_vocabulary_entries v ON v.id = m.public_entry_id
+        WHERE m.public_wordbook_id = #{publicWordbookId}
+        ORDER BY m.sort_order ASC, v.word ASC
+    </select>
+
+    <select id="countUserPublicWordbook" resultType="int">
+        SELECT COUNT(*)
+        FROM user_public_wordbooks
+        WHERE user_id = #{userId} AND public_wordbook_id = #{publicWordbookId}
+    </select>
+
+    <insert id="insertUserPublicWordbook">
+        INSERT INTO user_public_wordbooks(
+            user_id,
+            public_wordbook_id,
+            current_sort_order,
+            completed_count,
+            wrong_count,
+            subscribed_at
+        )
+        VALUES(#{userId}, #{publicWordbookId}, 0, 0, 0, CURRENT_TIMESTAMP)
     </insert>
 
-    <update id="updatePublicWordbookMetadata">
-        UPDATE wordbooks
-        SET platform = #{platform},
-            source_name = #{sourceName},
-            import_source = #{importSource}
-        WHERE id = #{wordbookId}
+    <update id="resetUserPublicWordbook">
+        UPDATE user_public_wordbooks
+        SET current_sort_order = 0,
+            completed_count = 0,
+            wrong_count = 0,
+            last_studied_at = NULL
+        WHERE user_id = #{userId}
+          AND public_wordbook_id = #{publicWordbookId}
     </update>
 
-    <update id="syncWordbookCount">
-        UPDATE wordbooks
-        SET word_count = (
-            SELECT COUNT(*)
-            FROM vocabulary_entries
-            WHERE wordbook_id = #{wordbookId}
-        )
-        WHERE id = #{wordbookId}
+    <delete id="deleteUserPublicWordbookWrongEntries">
+        DELETE FROM user_public_wordbook_wrong_entries
+        WHERE user_id = #{userId}
+          AND public_wordbook_id = #{publicWordbookId}
+    </delete>
+
+    <update id="cancelActivePublicQuizSessions">
+        UPDATE quiz_sessions
+        SET status = 'CANCELLED',
+            finished_at = CURRENT_TIMESTAMP
+        WHERE user_id = #{userId}
+          AND target_type = 'PUBLIC_WORDBOOK'
+          AND target_id = #{publicWordbookId}
+          AND status = 'ACTIVE'
     </update>
 
     <select id="loadWordbookCleanupRows" resultType="com.nightfall.englishnova.search.domain.vo.WordbookCleanupVo">

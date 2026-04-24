@@ -7,6 +7,8 @@ public record AuthUserDto(
         @Schema(description = "User id")
         long id,
         @Schema(description = "Username")
-        String username
+        String username,
+        @Schema(description = "Avatar image URL")
+        String avatarUrl
 ) {
 }

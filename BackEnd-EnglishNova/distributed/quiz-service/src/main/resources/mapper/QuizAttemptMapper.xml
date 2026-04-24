@@ -3,29 +3,35 @@
 <mapper namespace="com.nightfall.englishnova.quiz.mapper.QuizAttemptMapper">
     <insert id="insertAttempt">
         INSERT INTO quiz_attempts(
-            session_id, user_id, vocabulary_entry_id, prompt_type, prompt_text,
-            option_a, option_b, option_c, option_d, correct_option, created_at
+            session_id, user_id, user_vocabulary_entry_id, public_entry_id, prompt_type, prompt_text,
+            option_a, option_b, option_c, option_d, correct_option, wrong_submissions, created_at
         )
         VALUES (
-            #{sessionId}, #{userId}, #{vocabularyEntryId}, #{promptType}, #{promptText},
-            #{optionA}, #{optionB}, #{optionC}, #{optionD}, #{correctOption}, #{createdAt}
+            #{sessionId}, #{userId}, #{userVocabularyEntryId}, #{publicEntryId}, #{promptType}, #{promptText},
+            #{optionA}, #{optionB}, #{optionC}, #{optionD}, #{correctOption}, #{wrongSubmissions}, #{createdAt}
         )
     </insert>
 
     <select id="findByUserSessionAndId" resultType="com.nightfall.englishnova.quiz.domain.vo.AttemptVo">
-        SELECT id, vocabulary_entry_id, correct_option, selected_option
+        SELECT id, user_vocabulary_entry_id, public_entry_id, correct_option, selected_option, wrong_submissions
         FROM quiz_attempts
         WHERE id = #{attemptId} AND session_id = #{sessionId} AND user_id = #{userId}
         LIMIT 1
     </select>
 
-    <select id="loadNextQuestion" resultType="com.nightfall.englishnova.quiz.domain.vo.QuestionVo">
+    <select id="loadCurrentQuestion" resultType="com.nightfall.englishnova.quiz.domain.vo.QuestionVo">
         SELECT id, prompt_type, prompt_text, option_a, option_b, option_c, option_d
         FROM quiz_attempts
         WHERE session_id = #{sessionId} AND selected_option IS NULL
-        ORDER BY id ASC
+        ORDER BY id DESC
         LIMIT 1
     </select>
+
+    <update id="recordWrongSubmission">
+        UPDATE quiz_attempts
+        SET wrong_submissions = wrong_submissions + 1
+        WHERE id = #{attemptId}
+    </update>
 
     <update id="markSelected">
         UPDATE quiz_attempts

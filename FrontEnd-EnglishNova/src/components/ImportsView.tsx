@@ -10,7 +10,6 @@ export function ImportsView() {
     setSourceName,
     preset,
     setSelectedFile,
-    tasks,
     handleImport,
   } = useAppStateContext()
 
@@ -58,17 +57,6 @@ export function ImportsView() {
         <button type="button" className="primary" onClick={() => void onImport()}>
           上传并导入
         </button>
-      </div>
-      <div className="list">
-        {tasks.slice(0, 8).map((task) => (
-          <div key={task.taskId} className="card">
-            <strong>{task.sourceName}</strong>
-            <span>
-              {task.importedCards} / {task.estimatedCards}
-            </span>
-            <small>{task.status}</small>
-          </div>
-        ))}
       </div>
     </div>
   )

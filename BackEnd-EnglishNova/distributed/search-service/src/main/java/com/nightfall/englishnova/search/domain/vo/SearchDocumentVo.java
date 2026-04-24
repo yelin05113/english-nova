@@ -9,16 +9,15 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class SearchDocumentVo {
     private long entryId;
+    private String entryType;
     private Long ownerUserId;
     private String visibility;
-    private long wordbookId;
+    private Long wordbookId;
     private String word;
     private String phonetic;
     private String meaningCn;
     private String exampleSentence;
     private String category;
-    private String definitionEn;
-    private String tags;
     private Integer bncRank;
     private Integer frqRank;
     private Double wordfreqZipf;

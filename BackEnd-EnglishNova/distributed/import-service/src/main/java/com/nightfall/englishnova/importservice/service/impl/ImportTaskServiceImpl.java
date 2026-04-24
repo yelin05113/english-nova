@@ -3,11 +3,9 @@ package com.nightfall.englishnova.importservice.service.impl;
 import com.nightfall.englishnova.importservice.config.EnglishNovaProperties;
 import com.nightfall.englishnova.importservice.domain.po.VocabularyEntryPo;
 import com.nightfall.englishnova.importservice.domain.po.WordbookPo;
-import com.nightfall.englishnova.importservice.domain.vo.ImportTaskVo;
 import com.nightfall.englishnova.importservice.importer.ImportedVocabularyRecord;
 import com.nightfall.englishnova.importservice.importer.WordImportAdapter;
 import com.nightfall.englishnova.importservice.importer.WordImportDispatcher;
-import com.nightfall.englishnova.importservice.mapper.ImportTaskMapper;
 import com.nightfall.englishnova.importservice.mapper.UserMapper;
 import com.nightfall.englishnova.importservice.mapper.UserWordProgressMapper;
 import com.nightfall.englishnova.importservice.mapper.VocabularyEntryMapper;
@@ -16,9 +14,7 @@ import com.nightfall.englishnova.importservice.service.ImportTaskService;
 import com.nightfall.englishnova.shared.auth.CurrentUser;
 import com.nightfall.englishnova.shared.dto.ImportPresetDto;
 import com.nightfall.englishnova.shared.dto.ImportTaskDto;
-import com.nightfall.englishnova.shared.dto.ImportTaskRequest;
 import com.nightfall.englishnova.shared.enums.ProgressStatus;
-import com.nightfall.englishnova.shared.enums.VocabularyVisibility;
 import com.nightfall.englishnova.shared.enums.WordImportPlatform;
 import com.nightfall.englishnova.shared.events.WordbookImportedEvent;
 import com.nightfall.englishnova.shared.exception.NotFoundException;
@@ -34,7 +30,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Comparator;
@@ -52,7 +47,6 @@ public class ImportTaskServiceImpl implements ImportTaskService {
 
     private final WordImportDispatcher dispatcher;
     private final EnglishNovaProperties properties;
-    private final ImportTaskMapper importTaskMapper;
     private final UserMapper userMapper;
     private final WordbookMapper wordbookMapper;
     private final VocabularyEntryMapper vocabularyEntryMapper;
@@ -62,7 +56,6 @@ public class ImportTaskServiceImpl implements ImportTaskService {
     public ImportTaskServiceImpl(
             WordImportDispatcher dispatcher,
             EnglishNovaProperties properties,
-            ImportTaskMapper importTaskMapper,
             UserMapper userMapper,
             WordbookMapper wordbookMapper,
             VocabularyEntryMapper vocabularyEntryMapper,
@@ -71,7 +64,6 @@ public class ImportTaskServiceImpl implements ImportTaskService {
     ) {
         this.dispatcher = dispatcher;
         this.properties = properties;
-        this.importTaskMapper = importTaskMapper;
         this.userMapper = userMapper;
         this.wordbookMapper = wordbookMapper;
         this.vocabularyEntryMapper = vocabularyEntryMapper;
@@ -85,34 +77,6 @@ public class ImportTaskServiceImpl implements ImportTaskService {
                 .map(WordImportAdapter::preset)
                 .sorted(Comparator.comparing(ImportPresetDto::title))
                 .toList();
-    }
-
-    @Override
-    public List<ImportTaskDto> listTasks(CurrentUser user) {
-        requireActiveUser(user.id());
-        return importTaskMapper.listByUser(user.id()).stream()
-                .map(this::mapTask)
-                .toList();
-    }
-
-    @Override
-    @Transactional
-    public ImportTaskDto createTask(CurrentUser user, ImportTaskRequest request) {
-        requireActiveUser(user.id());
-        requireAdapter(request.platform());
-        ImportTaskDto task = persistTask(
-                user.id(),
-                null,
-                request.platform(),
-                request.sourceName(),
-                request.estimatedCards(),
-                0,
-                "QUEUED",
-                properties.getQueue(),
-                null
-        );
-        rabbitTemplate.convertAndSend(properties.getExchange(), properties.getRoutingKey(), task.taskId());
-        return task;
     }
 
     @Override
@@ -149,17 +113,7 @@ public class ImportTaskServiceImpl implements ImportTaskService {
             initializeProgress(user.id(), wordbookId);
             wordbookMapper.syncWordbookCount(wordbookId);
 
-            ImportTaskDto task = persistTask(
-                    user.id(),
-                    wordbookId,
-                    platform,
-                    resolvedSourceName,
-                    records.size(),
-                    records.size(),
-                    "IMPORTED",
-                    "direct-import",
-                    OffsetDateTime.now(ZoneOffset.UTC)
-            );
+            ImportTaskDto task = buildImportResult(wordbookId, platform, resolvedSourceName, records.size());
 
             rabbitTemplate.convertAndSend(
                     properties.getExchange(),
@@ -237,7 +191,6 @@ public class ImportTaskServiceImpl implements ImportTaskService {
         row.setExampleSentence(truncate(UserFacingTextNormalizer.normalizeDisplayText(defaultText(record.exampleSentence(), record.meaning())), 255));
         row.setCategory(truncate(UserFacingTextNormalizer.normalizeMeaningText(defaultText(record.category(), "Anki 导入")), 120));
         row.setDifficulty(Math.max(1, Math.min(5, record.difficulty())));
-        row.setVisibility(VocabularyVisibility.PRIVATE.name());
         row.setAudioUrl("");
         row.setImportSource(importSource);
         return row;
@@ -250,61 +203,27 @@ public class ImportTaskServiceImpl implements ImportTaskService {
         }
     }
 
-    private ImportTaskDto persistTask(
-            long userId,
+    private ImportTaskDto buildImportResult(
             Long wordbookId,
             WordImportPlatform platform,
             String sourceName,
-            int estimatedCards,
-            int importedCards,
-            String status,
-            String queueName,
-            OffsetDateTime finishedAt
+            int importedCards
     ) {
         String normalizedSourceName = truncate(UserFacingTextNormalizer.normalizeDisplayText(sourceName), 120);
         String taskId = UUID.randomUUID().toString();
         OffsetDateTime queuedAt = OffsetDateTime.now(ZoneOffset.UTC);
-        ImportTaskDto task = new ImportTaskDto(
+        OffsetDateTime finishedAt = OffsetDateTime.now(ZoneOffset.UTC);
+        return new ImportTaskDto(
                 taskId,
                 wordbookId,
                 platform,
                 normalizedSourceName,
-                estimatedCards,
                 importedCards,
-                status,
+                importedCards,
+                "IMPORTED",
                 queuedAt,
                 finishedAt,
-                queueName
-        );
-
-        importTaskMapper.insertTask(
-                task.taskId(),
-                userId,
-                task.wordbookId(),
-                task.platform().name(),
-                task.sourceName(),
-                task.estimatedCards(),
-                task.importedCards(),
-                task.status(),
-                Timestamp.from(task.queuedAt().toInstant()),
-                task.finishedAt() == null ? null : Timestamp.from(task.finishedAt().toInstant()),
-                task.queueName()
-        );
-        return task;
-    }
-
-    private ImportTaskDto mapTask(ImportTaskVo row) {
-        return new ImportTaskDto(
-                row.getTaskId(),
-                row.getWordbookId(),
-                WordImportPlatform.valueOf(row.getPlatform()),
-                UserFacingTextNormalizer.normalizeDisplayText(row.getSourceName()),
-                row.getEstimatedCards(),
-                row.getImportedCards(),
-                row.getStatus(),
-                row.getQueuedAt().toInstant().atOffset(ZoneOffset.UTC),
-                row.getFinishedAt() == null ? null : row.getFinishedAt().toInstant().atOffset(ZoneOffset.UTC),
-                row.getQueueName()
+                "direct-import"
         );
     }
 }

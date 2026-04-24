@@ -9,7 +9,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AttemptVo {
     private long id;
-    private long vocabularyEntryId;
+    private Long userVocabularyEntryId;
+    private Long publicEntryId;
     private String correctOption;
     private String selectedOption;
+    private int wrongSubmissions;
 }

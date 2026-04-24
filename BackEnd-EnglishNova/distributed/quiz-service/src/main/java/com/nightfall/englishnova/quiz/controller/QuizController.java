@@ -45,7 +45,7 @@ public class QuizController {
      * @param request HTTP 请求
      * @return 词书概要列表
      */
-    @GetMapping("/api/wordbooks")
+    @GetMapping({"/api/wordbooks", "/wordbooks"})
     public ApiResponse<List<WordbookSummaryDto>> wordbooks(HttpServletRequest request) {
         CurrentUser user = RequestUserExtractor.require(request);
         return ApiResponse.success(quizService.listWordbooks(user));
@@ -58,7 +58,7 @@ public class QuizController {
      * @param request    HTTP 请求
      * @return 词条列表
      */
-    @GetMapping("/api/wordbooks/{wordbookId}/entries")
+    @GetMapping({"/api/wordbooks/{wordbookId}/entries", "/wordbooks/{wordbookId}/entries"})
     public ApiResponse<List<VocabularyEntryDto>> entries(@PathVariable long wordbookId, HttpServletRequest request) {
         CurrentUser user = RequestUserExtractor.require(request);
         return ApiResponse.success(quizService.listEntries(user, wordbookId));
@@ -71,7 +71,7 @@ public class QuizController {
      * @param request    HTTP 请求
      * @return 词书学习进度
      */
-    @GetMapping("/api/wordbooks/{wordbookId}/progress")
+    @GetMapping({"/api/wordbooks/{wordbookId}/progress", "/wordbooks/{wordbookId}/progress"})
     public ApiResponse<WordbookProgressDto> progress(@PathVariable long wordbookId, HttpServletRequest request) {
         CurrentUser user = RequestUserExtractor.require(request);
         return ApiResponse.success(quizService.getWordbookProgress(user, wordbookId));
@@ -84,7 +84,7 @@ public class QuizController {
      * @param servletRequest HTTP 请求
      * @return 会话状态
      */
-    @PostMapping("/api/quiz/sessions")
+    @PostMapping({"/api/quiz/sessions", "/quiz/sessions"})
     public ApiResponse<QuizSessionStateDto> createSession(
             @Valid @RequestBody CreateQuizSessionRequest request,
             HttpServletRequest servletRequest
@@ -100,7 +100,7 @@ public class QuizController {
      * @param request   HTTP 请求
      * @return 会话状态
      */
-    @GetMapping("/api/quiz/sessions/{sessionId}")
+    @GetMapping({"/api/quiz/sessions/{sessionId}", "/quiz/sessions/{sessionId}"})
     public ApiResponse<QuizSessionStateDto> session(@PathVariable String sessionId, HttpServletRequest request) {
         CurrentUser user = RequestUserExtractor.require(request);
         return ApiResponse.success(quizService.getSessionState(user, sessionId));
@@ -114,7 +114,7 @@ public class QuizController {
      * @param servletRequest HTTP 请求
      * @return 作答结果
      */
-    @PostMapping("/api/quiz/sessions/{sessionId}/answers")
+    @PostMapping({"/api/quiz/sessions/{sessionId}/answers", "/quiz/sessions/{sessionId}/answers"})
     public ApiResponse<QuizAnswerResultDto> answer(
             @PathVariable String sessionId,
             @Valid @RequestBody QuizAnswerRequest request,

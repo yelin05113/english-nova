@@ -3,16 +3,16 @@
 <mapper namespace="com.nightfall.englishnova.importservice.mapper.VocabularyEntryMapper">
 
     <insert id="batchInsert">
-        INSERT INTO vocabulary_entries(
+        INSERT INTO user_vocabulary_entries(
             user_id, wordbook_id, word, phonetic, meaning_cn, example_sentence, category,
-            difficulty, visibility, audio_url, import_source, created_at
+            difficulty, audio_url, import_source, created_at
         )
         VALUES
         <foreach collection="entries" item="entry" separator=",">
             (
                 #{entry.userId}, #{entry.wordbookId}, #{entry.word}, #{entry.phonetic},
                 #{entry.meaningCn}, #{entry.exampleSentence}, #{entry.category},
-                #{entry.difficulty}, #{entry.visibility}, #{entry.audioUrl}, #{entry.importSource},
+                #{entry.difficulty}, #{entry.audioUrl}, #{entry.importSource},
                 CURRENT_TIMESTAMP
             )
         </foreach>
@@ -20,7 +20,7 @@
 
     <select id="findIdsByUserAndWordbook" resultType="long">
         SELECT id
-        FROM vocabulary_entries
+        FROM user_vocabulary_entries
         WHERE user_id = #{userId} AND wordbook_id = #{wordbookId}
     </select>
 </mapper>

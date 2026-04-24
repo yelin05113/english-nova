@@ -6,6 +6,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record SearchHitDto(
         @Schema(description = "Entry id")
         Long entryId,
+        @Schema(description = "Entry type")
+        String entryType,
         @Schema(description = "Word")
         String word,
         @Schema(description = "Phonetic")
@@ -18,10 +20,6 @@ public record SearchHitDto(
         String exampleSentence,
         @Schema(description = "Category")
         String category,
-        @Schema(description = "English definition")
-        String definitionEn,
-        @Schema(description = "Tags")
-        String tags,
         @Schema(description = "Frequency rank")
         Integer frequencyRank,
         @Schema(description = "Wordfreq Zipf score")

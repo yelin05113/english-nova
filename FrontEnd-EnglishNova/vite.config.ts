@@ -6,6 +6,18 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const apiTarget = env.VITE_GATEWAY_PROXY_TARGET || 'http://localhost:8080'
+  const apiProxy = Object.fromEntries(
+    [
+      '^/auth/(login|register|me)$',
+      '^/system/',
+      '^/study/',
+      '^/search/',
+      '^/public-wordbooks',
+      '^/imports/(presets|files)$',
+      '^/wordbooks',
+      '^/quiz/sessions',
+    ].map((path) => [path, { target: apiTarget, changeOrigin: true }]),
+  )
 
   return {
     plugins: [
@@ -15,12 +27,7 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       port: Number(env.VITE_PORT || env.FRONTEND_PORT || 3000),
       strictPort: true,
-      proxy: {
-        '/api': {
-          target: apiTarget,
-          changeOrigin: true,
-        },
-      },
+      proxy: apiProxy,
     },
   }
 })

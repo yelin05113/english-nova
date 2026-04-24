@@ -24,11 +24,11 @@ function withAuth(options?: ApiAuthOptions) {
 }
 
 async function getAgenda(options?: ApiAuthOptions) {
-  return apiFetch<StudyAgenda>('/api/study/agenda', undefined, withAuth(options))
+  return apiFetch<StudyAgenda>('/study/agenda', undefined, withAuth(options))
 }
 
 async function getProgress(options?: ApiAuthOptions) {
-  return apiFetch<StudyProgress>('/api/study/progress', undefined, withAuth(options))
+  return apiFetch<StudyProgress>('/study/progress', undefined, withAuth(options))
 }
 
 export const studyApi = {

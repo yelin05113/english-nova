@@ -7,6 +7,7 @@ import { SearchView } from '../components/SearchView'
 import { AppLayout } from '../layouts/AppLayout'
 import { AuthView } from '../views/AuthView'
 import { HomeView } from '../views/HomeView'
+import { ProfileView } from '../views/ProfileView'
 import { AuthGuard, ProtectedGuard } from './guards'
 
 export function AppRouter() {
@@ -24,6 +25,7 @@ export function AppRouter() {
           <Route path="imports" element={<ImportsView />} />
           <Route path="progress" element={<ProgressView />} />
           <Route path="search" element={<SearchView />} />
+          <Route path="profile" element={<ProfileView />} />
         </Route>
       </Route>
     </Routes>

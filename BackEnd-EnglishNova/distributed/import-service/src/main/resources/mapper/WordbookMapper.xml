@@ -6,7 +6,7 @@
         UPDATE wordbooks
         SET word_count = (
             SELECT COUNT(*)
-            FROM vocabulary_entries
+            FROM user_vocabulary_entries
             WHERE wordbook_id = #{wordbookId}
         )
         WHERE id = #{wordbookId}

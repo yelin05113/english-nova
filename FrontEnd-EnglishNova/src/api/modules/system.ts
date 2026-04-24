@@ -15,7 +15,7 @@ export interface SystemOverview {
 }
 
 async function getOverview() {
-  return apiFetch<SystemOverview>('/api/system/overview')
+  return apiFetch<SystemOverview>('/system/overview')
 }
 
 export const systemApi = {

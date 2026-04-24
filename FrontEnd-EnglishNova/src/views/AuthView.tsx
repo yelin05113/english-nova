@@ -1,3 +1,4 @@
+import type { FormEvent } from 'react'
 import { useAppStateContext } from '../context/AppStateContext'
 
 export function AuthView() {
@@ -16,9 +17,22 @@ export function AuthView() {
     setRegisterPassword,
     overview,
     error,
+    loading,
     handleLogin,
     handleRegister,
   } = useAppStateContext()
+
+  function onLoginSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (loading) return
+    void handleLogin()
+  }
+
+  function onRegisterSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (loading) return
+    void handleRegister()
+  }
 
   return (
     <div className="auth-page">
@@ -52,7 +66,7 @@ export function AuthView() {
           {error && <p className="notice error">{error}</p>}
 
           {authTab === 'login' ? (
-            <div className="form">
+            <form className="form" onSubmit={onLoginSubmit}>
               <label>
                 <span>用户名或邮箱</span>
                 <input
@@ -68,17 +82,16 @@ export function AuthView() {
                   type="password"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && void handleLogin()}
                   placeholder="请输入密码"
                   autoComplete="current-password"
                 />
               </label>
-              <button type="button" className="primary" onClick={() => void handleLogin()}>
-                登录并进入词库
+              <button type="submit" className="primary" disabled={loading}>
+                {loading ? '登录中...' : '登录并进入词库'}
               </button>
-            </div>
+            </form>
           ) : (
-            <div className="form">
+            <form className="form" onSubmit={onRegisterSubmit}>
               <label>
                 <span>用户名</span>
                 <input
@@ -108,10 +121,10 @@ export function AuthView() {
                   autoComplete="new-password"
                 />
               </label>
-              <button type="button" className="primary" onClick={() => void handleRegister()}>
-                注册并开始使用
+              <button type="submit" className="primary" disabled={loading}>
+                {loading ? '注册中...' : '注册并开始使用'}
               </button>
-            </div>
+            </form>
           )}
         </article>
 

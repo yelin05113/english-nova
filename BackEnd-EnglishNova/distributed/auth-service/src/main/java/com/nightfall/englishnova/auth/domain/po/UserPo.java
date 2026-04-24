@@ -1,6 +1,7 @@
 package com.nightfall.englishnova.auth.domain.po;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;
@@ -17,6 +18,8 @@ public class UserPo {
     private Long id;
     private String username;
     private String email;
+    @TableField("avatar_url")
+    private String avatarUrl;
     private String passwordHash;
     private String status;
 }

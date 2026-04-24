@@ -1,6 +1,7 @@
 package com.nightfall.englishnova.search.mapper;
 
-import com.nightfall.englishnova.search.domain.po.PublicWordbookPo;
+import com.nightfall.englishnova.search.domain.vo.PublicWordbookEntryRow;
+import com.nightfall.englishnova.search.domain.vo.PublicWordbookRow;
 import com.nightfall.englishnova.search.domain.vo.WordbookCleanupVo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -12,18 +13,23 @@ public interface SearchWordbookMapper {
 
     int countOwnedWordbook(@Param("userId") long userId, @Param("wordbookId") long wordbookId);
 
-    Long findPublicWordbookId(@Param("userId") long userId, @Param("name") String name);
+    List<PublicWordbookRow> listPublicWordbooks(@Param("userId") long userId);
 
-    void insertPublicWordbook(PublicWordbookPo row);
+    PublicWordbookRow findPublicWordbook(@Param("publicWordbookId") long publicWordbookId);
 
-    void updatePublicWordbookMetadata(
-            @Param("wordbookId") long wordbookId,
-            @Param("platform") String platform,
-            @Param("sourceName") String sourceName,
-            @Param("importSource") String importSource
-    );
+    PublicWordbookRow findUserPublicWordbook(@Param("userId") long userId, @Param("publicWordbookId") long publicWordbookId);
 
-    void syncWordbookCount(@Param("wordbookId") long wordbookId);
+    List<PublicWordbookEntryRow> listPublicWordbookEntries(@Param("publicWordbookId") long publicWordbookId);
+
+    int countUserPublicWordbook(@Param("userId") long userId, @Param("publicWordbookId") long publicWordbookId);
+
+    void insertUserPublicWordbook(@Param("userId") long userId, @Param("publicWordbookId") long publicWordbookId);
+
+    int resetUserPublicWordbook(@Param("userId") long userId, @Param("publicWordbookId") long publicWordbookId);
+
+    void deleteUserPublicWordbookWrongEntries(@Param("userId") long userId, @Param("publicWordbookId") long publicWordbookId);
+
+    void cancelActivePublicQuizSessions(@Param("userId") long userId, @Param("publicWordbookId") long publicWordbookId);
 
     List<WordbookCleanupVo> loadWordbookCleanupRows();
 

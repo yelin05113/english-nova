@@ -28,7 +28,25 @@ export async function apiFetch<T>(
   }
 
   const response = await fetch(path, { ...init, headers })
-  const payload = (await response.json()) as ApiResponse<T>
+  const responseText = await response.text()
+  let payload: ApiResponse<T>
+  try {
+    payload = responseText
+      ? (JSON.parse(responseText) as ApiResponse<T>)
+      : ({
+          success: response.ok,
+          data: null as T,
+          message: response.ok ? 'ok' : response.statusText || 'Request failed',
+          timestamp: new Date().toISOString(),
+        } satisfies ApiResponse<T>)
+  } catch {
+    payload = {
+      success: false,
+      data: null as T,
+      message: response.statusText || `Request failed with status ${response.status}`,
+      timestamp: new Date().toISOString(),
+    }
+  }
   const message = payload.message || 'Request failed'
   const unauthorizedByMessage = options?.requireAuth && /token|unauthorized|login/i.test(message)
 

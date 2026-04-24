@@ -6,14 +6,11 @@ import com.nightfall.englishnova.shared.auth.RequestUserExtractor;
 import com.nightfall.englishnova.shared.common.ApiResponse;
 import com.nightfall.englishnova.shared.dto.ImportPresetDto;
 import com.nightfall.englishnova.shared.dto.ImportTaskDto;
-import com.nightfall.englishnova.shared.dto.ImportTaskRequest;
 import com.nightfall.englishnova.shared.enums.WordImportPlatform;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -26,7 +23,7 @@ import java.util.List;
  * 导入相关 HTTP 接口控制器。提供导入平台预设查询、任务创建与文件上传等端点。
  */
 @RestController
-@RequestMapping("/api/imports")
+@RequestMapping({"/api/imports", "/imports"})
 public class ImportController {
 
     private final ImportTaskService importTaskService;
@@ -56,11 +53,6 @@ public class ImportController {
      * @param request HTTP 请求
      * @return 导入任务列表
      */
-    @GetMapping("/tasks")
-    public ApiResponse<List<ImportTaskDto>> tasks(HttpServletRequest request) {
-        CurrentUser user = RequestUserExtractor.require(request);
-        return ApiResponse.success(importTaskService.listTasks(user));
-    }
 
     /**
      * 创建异步导入任务。
@@ -69,11 +61,6 @@ public class ImportController {
      * @param servletRequest HTTP 请求
      * @return 导入任务 DTO
      */
-    @PostMapping("/tasks")
-    public ApiResponse<ImportTaskDto> createTask(@Valid @RequestBody ImportTaskRequest request, HttpServletRequest servletRequest) {
-        CurrentUser user = RequestUserExtractor.require(servletRequest);
-        return ApiResponse.success(importTaskService.createTask(user, request));
-    }
 
     /**
      * 通过文件上传直接导入词书。

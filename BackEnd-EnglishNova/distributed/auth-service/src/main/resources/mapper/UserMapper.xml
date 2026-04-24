@@ -14,10 +14,23 @@
         WHERE email = #{email}
     </select>
 
+    <select id="countByUsernameExceptId" resultType="int">
+        SELECT COUNT(*)
+        FROM users
+        WHERE username = #{username} AND id &lt;&gt; #{userId}
+    </select>
+
     <select id="findByAccount" resultType="com.nightfall.englishnova.auth.domain.po.UserPo">
-        SELECT id, username, email, password_hash, status
+        SELECT id, username, email, avatar_url, password_hash, status
         FROM users
         WHERE username = #{account} OR email = #{emailAccount}
         LIMIT 1
     </select>
+
+    <update id="updateProfile">
+        UPDATE users
+        SET username = #{username},
+            avatar_url = #{avatarUrl}
+        WHERE id = #{userId}
+    </update>
 </mapper>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nightfall.englishnova.quiz.mapper.QuizPublicWordbookMapper">
+    <select id="findSubscription" resultType="com.nightfall.englishnova.quiz.domain.vo.PublicWordbookSubscriptionVo">
+        SELECT
+            upw.public_wordbook_id,
+            upw.current_sort_order,
+            upw.completed_count,
+            upw.wrong_count,
+            pw.word_count
+        FROM user_public_wordbooks upw
+        JOIN public_wordbooks pw ON pw.id = upw.public_wordbook_id
+        WHERE upw.user_id = #{userId}
+          AND upw.public_wordbook_id = #{publicWordbookId}
+        LIMIT 1
+    </select>
+
+    <insert id="insertWrongEntry">
+        INSERT IGNORE INTO user_public_wordbook_wrong_entries(
+            user_id,
+            public_wordbook_id,
+            public_entry_id,
+            created_at
+        )
+        VALUES(#{userId}, #{publicWordbookId}, #{publicEntryId}, CURRENT_TIMESTAMP)
+    </insert>
+
+    <update id="incrementWrongCount">
+        UPDATE user_public_wordbooks
+        SET wrong_count = wrong_count + 1,
+            last_studied_at = CURRENT_TIMESTAMP
+        WHERE user_id = #{userId}
+          AND public_wordbook_id = #{publicWordbookId}
+    </update>
+
+    <update id="advanceAfterCorrect">
+        UPDATE user_public_wordbooks
+        SET current_sort_order = current_sort_order + 1,
+            completed_count = completed_count + 1,
+            last_studied_at = CURRENT_TIMESTAMP
+        WHERE user_id = #{userId}
+          AND public_wordbook_id = #{publicWordbookId}
+    </update>
+</mapper>

@@ -12,11 +12,11 @@ import java.util.List;
 @Mapper
 public interface SearchVocabularyMapper {
 
-    void updateAudioUrl(@Param("entryId") long entryId, @Param("audioUrl") String audioUrl);
+    void updatePublicAudioUrl(@Param("entryId") long entryId, @Param("audioUrl") String audioUrl);
 
-    List<SearchDocumentVo> listByUserAndWordbook(@Param("userId") long userId, @Param("wordbookId") long wordbookId);
+    List<SearchDocumentVo> listUserByWordbook(@Param("userId") long userId, @Param("wordbookId") long wordbookId);
 
-    Long findExistingPublicEntryId(@Param("userId") long userId, @Param("visibility") String visibility, @Param("word") String word);
+    Long findExistingPublicEntryId(@Param("word") String word);
 
     void insertPublicEntry(PublicEntryPo row);
 
@@ -26,35 +26,45 @@ public interface SearchVocabularyMapper {
             @Param("phonetic") String phonetic,
             @Param("meaningCn") String meaningCn,
             @Param("exampleSentence") String exampleSentence,
-            @Param("category") String category,
-            @Param("definitionEn") String definitionEn,
-            @Param("tags") String tags,
             @Param("bncRank") Integer bncRank,
             @Param("frqRank") Integer frqRank,
             @Param("wordfreqZipf") Double wordfreqZipf,
             @Param("exchangeInfo") String exchangeInfo,
             @Param("dataQuality") String dataQuality,
-            @Param("difficulty") int difficulty,
             @Param("audioUrl") String audioUrl,
             @Param("importSource") String importSource
     );
 
-    SearchDocumentVo findDocumentById(@Param("entryId") long entryId);
+    SearchDocumentVo findPublicDocumentById(@Param("entryId") long entryId);
 
-    Long findPublicEntryId(@Param("userId") long userId, @Param("wordbookId") long wordbookId, @Param("word") String word);
+    SearchDocumentVo findUserDocumentById(@Param("entryId") long entryId);
 
-    DetailVo loadDetailRow(@Param("entryId") long entryId);
+    Long findPublicEntryId(@Param("word") String word);
 
-    List<SearchDocumentVo> loadAllRows();
+    DetailVo loadPublicDetailRow(@Param("entryId") long entryId);
 
-    List<VocabularyCleanupVo> loadVocabularyCleanupRows();
+    DetailVo loadUserDetailRow(@Param("entryId") long entryId);
 
-    void updateVocabularyCleanup(
+    List<SearchDocumentVo> loadAllPublicRows();
+
+    List<SearchDocumentVo> loadAllUserRows();
+
+    List<VocabularyCleanupVo> loadPublicVocabularyCleanupRows();
+
+    List<VocabularyCleanupVo> loadUserVocabularyCleanupRows();
+
+    void updatePublicVocabularyCleanup(
+            @Param("id") long id,
+            @Param("phonetic") String phonetic,
+            @Param("meaningCn") String meaningCn,
+            @Param("exampleSentence") String exampleSentence
+    );
+
+    void updateUserVocabularyCleanup(
             @Param("id") long id,
             @Param("phonetic") String phonetic,
             @Param("meaningCn") String meaningCn,
             @Param("exampleSentence") String exampleSentence,
-            @Param("category") String category,
-            @Param("definitionEn") String definitionEn
+            @Param("category") String category
     );
 }

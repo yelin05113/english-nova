@@ -2,22 +2,32 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.nightfall.englishnova.quiz.mapper.QuizVocabularyEntryMapper">
     <select id="listEntries" resultType="com.nightfall.englishnova.quiz.domain.vo.VocabularyEntryVo">
-        SELECT id, word, phonetic, meaning_cn, example_sentence, category, difficulty, visibility
-        FROM vocabulary_entries
+        SELECT id, word, phonetic, meaning_cn, example_sentence, category, difficulty, 'PRIVATE' AS visibility
+        FROM user_vocabulary_entries
         WHERE user_id = #{userId} AND wordbook_id = #{wordbookId}
         ORDER BY word ASC
     </select>
 
-    <select id="loadWordbookEntries" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+    <select id="loadWordbookEntryByOffset" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
         SELECT id, word, meaning_cn
-        FROM vocabulary_entries
+        FROM user_vocabulary_entries
         WHERE user_id = #{userId} AND wordbook_id = #{wordbookId}
         ORDER BY id ASC
+        LIMIT 1 OFFSET #{offset}
+    </select>
+
+    <select id="loadPublicWordbookEntryBySortOrder" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT v.id, v.word, v.meaning_cn
+        FROM public_wordbook_entries m
+        JOIN public_vocabulary_entries v ON v.id = m.public_entry_id
+        WHERE m.public_wordbook_id = #{publicWordbookId}
+          AND m.sort_order = #{sortOrder}
+        LIMIT 1
     </select>
 
     <select id="loadUserWordDistractors" resultType="string">
         SELECT word
-        FROM vocabulary_entries
+        FROM user_vocabulary_entries
         WHERE user_id = #{userId} AND id &lt;&gt; #{entryId}
         ORDER BY RAND()
         LIMIT 12
@@ -25,7 +35,7 @@
 
     <select id="loadUserMeaningDistractors" resultType="string">
         SELECT meaning_cn
-        FROM vocabulary_entries
+        FROM user_vocabulary_entries
         WHERE user_id = #{userId} AND id &lt;&gt; #{entryId}
         ORDER BY RAND()
         LIMIT 12
@@ -33,16 +43,16 @@
 
     <select id="loadPublicWordDistractors" resultType="string">
         SELECT word
-        FROM vocabulary_entries
-        WHERE visibility = 'PUBLIC' AND id &lt;&gt; #{entryId}
+        FROM public_vocabulary_entries
+        WHERE id &lt;&gt; #{entryId}
         ORDER BY RAND()
         LIMIT 12
     </select>
 
     <select id="loadPublicMeaningDistractors" resultType="string">
         SELECT meaning_cn
-        FROM vocabulary_entries
-        WHERE visibility = 'PUBLIC' AND id &lt;&gt; #{entryId}
+        FROM public_vocabulary_entries
+        WHERE id &lt;&gt; #{entryId}
         ORDER BY RAND()
         LIMIT 12
     </select>
