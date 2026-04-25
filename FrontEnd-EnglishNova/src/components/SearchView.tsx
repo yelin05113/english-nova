@@ -91,6 +91,8 @@ export function SearchView() {
         <label className="search-box" ref={searchBoxRef}>
           <span>搜索英文单词、中文释义或例句</span>
           <input
+            id="global-search-query"
+            name="query"
             value={searchQuery}
             onChange={(event) => {
               setSearchQuery(event.target.value)

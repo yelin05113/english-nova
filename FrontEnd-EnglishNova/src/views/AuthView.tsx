@@ -15,7 +15,6 @@ export function AuthView() {
     setRegisterEmail,
     registerPassword,
     setRegisterPassword,
-    overview,
     error,
     loading,
     handleLogin,
@@ -39,7 +38,7 @@ export function AuthView() {
       <div className="auth-brand">
         <span className="logo">1103</span>
         <div>
-          <p className="eyebrow">English Nova</p>
+          <p className="eyebrow">像素词库</p>
           <h1>单词学习控制台</h1>
         </div>
       </div>
@@ -70,6 +69,8 @@ export function AuthView() {
               <label>
                 <span>用户名或邮箱</span>
                 <input
+                  id="login-account"
+                  name="account"
                   value={account}
                   onChange={(e) => setAccount(e.target.value)}
                   placeholder="请输入用户名或邮箱"
@@ -79,6 +80,8 @@ export function AuthView() {
               <label>
                 <span>密码</span>
                 <input
+                  id="login-password"
+                  name="password"
                   type="password"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
@@ -95,6 +98,8 @@ export function AuthView() {
               <label>
                 <span>用户名</span>
                 <input
+                  id="register-username"
+                  name="username"
                   value={registerUsername}
                   onChange={(e) => setRegisterUsername(e.target.value)}
                   placeholder="请输入用户名"
@@ -104,6 +109,8 @@ export function AuthView() {
               <label>
                 <span>邮箱</span>
                 <input
+                  id="register-email"
+                  name="email"
                   type="email"
                   value={registerEmail}
                   onChange={(e) => setRegisterEmail(e.target.value)}
@@ -114,6 +121,8 @@ export function AuthView() {
               <label>
                 <span>密码</span>
                 <input
+                  id="register-password"
+                  name="password"
                   type="password"
                   value={registerPassword}
                   onChange={(e) => setRegisterPassword(e.target.value)}
@@ -127,21 +136,6 @@ export function AuthView() {
             </form>
           )}
         </article>
-
-        {overview && (
-          <article className="panel auth-overview">
-            <p className="eyebrow">平台能力</p>
-            <h2 className="auth-product-name">{overview.productName}</h2>
-            <p>{overview.theme}</p>
-            <div className="auth-platforms">
-              {overview.supportedPlatforms.map((p) => (
-                <span key={p} className="badge">
-                  {p}
-                </span>
-              ))}
-            </div>
-          </article>
-        )}
       </section>
     </div>
   )

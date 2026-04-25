@@ -49,6 +49,15 @@ public class PublicWordbookController {
         return ApiResponse.success(searchCatalogService.subscribePublicWordbook(id, user));
     }
 
+    @PostMapping("/{id}/unsubscribe")
+    public ApiResponse<PublicWordbookDto> unsubscribe(
+            @PathVariable long id,
+            HttpServletRequest request
+    ) {
+        CurrentUser user = RequestUserExtractor.require(request);
+        return ApiResponse.success(searchCatalogService.unsubscribePublicWordbook(id, user));
+    }
+
     @PostMapping("/{id}/reset-progress")
     public ApiResponse<PublicWordbookDto> resetProgress(
             @PathVariable long id,

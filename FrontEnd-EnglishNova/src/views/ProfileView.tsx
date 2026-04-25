@@ -406,7 +406,13 @@ export function ProfileView() {
         <form className="form profile-form" onSubmit={(event) => void onSubmit(event)}>
           <label>
             <span>姓名</span>
-            <input value={username} onChange={(event) => setUsername(event.target.value)} maxLength={32} />
+            <input
+              id="profile-username"
+              name="username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              maxLength={32}
+            />
           </label>
 
           <div className="profile-upload-box">
@@ -416,6 +422,8 @@ export function ProfileView() {
               <small>{avatarFile ? '点击保存资料后生效' : '支持 JPG、PNG、WebP'}</small>
               <input
                 ref={fileInputRef}
+                id="profile-avatar"
+                name="avatar"
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
                 onChange={(event) => openCropper(event.target.files?.[0] ?? null)}
@@ -500,4 +508,3 @@ export function ProfileView() {
     </section>
   )
 }
-

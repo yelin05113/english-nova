@@ -28,6 +28,8 @@ public interface SearchCatalogService {
 
     PublicWordbookDto subscribePublicWordbook(long publicWordbookId, CurrentUser user);
 
+    PublicWordbookDto unsubscribePublicWordbook(long publicWordbookId, CurrentUser user);
+
     PublicWordbookDto resetPublicWordbookProgress(long publicWordbookId, CurrentUser user);
 
     PublicCatalogImportResultDto importPublicCatalog(PublicCatalogImportRequest request);
