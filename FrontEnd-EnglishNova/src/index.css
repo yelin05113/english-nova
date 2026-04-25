@@ -1,19 +1,19 @@
 :root {
-  --paper: #f4efe4;
-  --paper-deep: #ebe4d4;
-  --forest-deep: #2e4634;
-  --ink-soft: #5a6759;
-  --muted: #7c8878;
-  --fern: #64815f;
-  --water: #8faeb0;
-  --line: rgba(89, 111, 87, 0.16);
-  --shadow: 0 22px 48px rgba(70, 90, 71, 0.12);
+  --paper: #fffaf0;
+  --paper-deep: #fff1be;
+  --forest-deep: #4a2f12;
+  --ink-soft: #6b4a24;
+  --muted: #9a7b4e;
+  --fern: #b57223;
+  --water: #f2c75c;
+  --line: rgba(181, 114, 35, 0.18);
+  --shadow: 0 22px 48px rgba(124, 76, 22, 0.12);
 
   color: var(--ink-soft);
   background:
-    radial-gradient(circle at top left, rgba(220, 233, 210, 0.72), transparent 24%),
-    radial-gradient(circle at top right, rgba(197, 216, 214, 0.66), transparent 22%),
-    linear-gradient(180deg, #f8f5ee, #f2ecdf 42%, #eef1ea);
+    radial-gradient(circle at top left, rgba(255, 201, 74, 0.18), transparent 24%),
+    radial-gradient(circle at top right, rgba(255, 232, 160, 0.56), transparent 22%),
+    linear-gradient(180deg, #fffefd, #fff8e6 42%, #fffaf0);
   font-family: Aptos, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -37,9 +37,9 @@ body {
   min-height: 100vh;
   color: var(--ink-soft);
   background:
-    radial-gradient(circle at 15% 20%, rgba(220, 233, 210, 0.76), transparent 20%),
-    radial-gradient(circle at 85% 12%, rgba(196, 214, 211, 0.7), transparent 18%),
-    linear-gradient(180deg, #faf6ef, #f1eadf 46%, #edf0e8);
+    radial-gradient(circle at 15% 20%, rgba(255, 201, 74, 0.16), transparent 20%),
+    radial-gradient(circle at 85% 12%, rgba(255, 232, 160, 0.52), transparent 18%),
+    linear-gradient(180deg, #fffefd, #fff7e0 46%, #fffaf0);
 }
 
 body::before {

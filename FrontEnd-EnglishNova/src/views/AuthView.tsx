@@ -35,6 +35,11 @@ export function AuthView() {
 
   return (
     <div className="auth-page">
+      {error && (
+        <div className="toast-layer auth-toast-layer" aria-live="polite" aria-atomic="true">
+          <p className="notice error">{error}</p>
+        </div>
+      )}
       <div className="auth-brand">
         <span className="logo">1103</span>
         <div>
@@ -61,8 +66,6 @@ export function AuthView() {
               注册
             </button>
           </div>
-
-          {error && <p className="notice error">{error}</p>}
 
           {authTab === 'login' ? (
             <form className="form" onSubmit={onLoginSubmit}>
