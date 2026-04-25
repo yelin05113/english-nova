@@ -115,6 +115,12 @@
         VALUES(#{userId}, #{publicWordbookId}, 0, 0, 0, CURRENT_TIMESTAMP)
     </insert>
 
+    <delete id="deleteUserPublicWordbook">
+        DELETE FROM user_public_wordbooks
+        WHERE user_id = #{userId}
+          AND public_wordbook_id = #{publicWordbookId}
+    </delete>
+
     <update id="resetUserPublicWordbook">
         UPDATE user_public_wordbooks
         SET current_sort_order = 0,

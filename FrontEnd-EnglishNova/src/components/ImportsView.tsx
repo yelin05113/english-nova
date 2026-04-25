@@ -23,6 +23,8 @@ export function ImportsView() {
         <label>
           <span>导入平台</span>
           <select
+            id="import-platform"
+            name="platform"
             value={selectedPlatform}
             onChange={(e) => onPlatformChange(e.target.value as ImportPlatform)}
           >
@@ -35,11 +37,18 @@ export function ImportsView() {
         </label>
         <label>
           <span>词书名称</span>
-          <input value={sourceName} onChange={(e) => onSourceNameChange(e.target.value)} />
+          <input
+            id="import-source-name"
+            name="sourceName"
+            value={sourceName}
+            onChange={(e) => onSourceNameChange(e.target.value)}
+          />
         </label>
         <label>
           <span>导入文件</span>
           <input
+            id="import-file"
+            name="file"
             type="file"
             accept={
               preset

@@ -11,7 +11,7 @@ export function Topbar() {
       <div className="brand">
         <span className="logo">1103</span>
         <div>
-          <p className="eyebrow">English Nova</p>
+          <p className="eyebrow">像素词库</p>
           <h1>1103 单词控制台</h1>
         </div>
       </div>

@@ -168,6 +168,14 @@ async function subscribePublicWordbook(publicWordbookId: number, options?: ApiAu
   )
 }
 
+async function unsubscribePublicWordbook(publicWordbookId: number, options?: ApiAuthOptions) {
+  return apiFetch<PublicWordbook>(
+    `/public-wordbooks/${publicWordbookId}/unsubscribe`,
+    { method: 'POST' },
+    withAuth(options),
+  )
+}
+
 async function resetPublicWordbookProgress(publicWordbookId: number, options?: ApiAuthOptions) {
   return apiFetch<PublicWordbook>(
     `/public-wordbooks/${publicWordbookId}/reset-progress`,
@@ -184,5 +192,6 @@ export const searchApi = {
   listPublicWordbooks,
   listPublicWordbookEntries,
   subscribePublicWordbook,
+  unsubscribePublicWordbook,
   resetPublicWordbookProgress,
 }

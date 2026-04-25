@@ -79,6 +79,8 @@ export function QuizView() {
         <label>
           <span>题型模式</span>
           <select
+            id="quiz-mode"
+            name="quizMode"
             value={quizMode}
             onChange={(e) => onQuizModeChange(e.target.value as QuizMode)}
             disabled={!!question}

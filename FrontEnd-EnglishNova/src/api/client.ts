@@ -36,18 +36,18 @@ export async function apiFetch<T>(
       : ({
           success: response.ok,
           data: null as T,
-          message: response.ok ? 'ok' : response.statusText || 'Request failed',
+          message: response.ok ? '成功' : response.statusText || '请求失败',
           timestamp: new Date().toISOString(),
         } satisfies ApiResponse<T>)
   } catch {
     payload = {
       success: false,
       data: null as T,
-      message: response.statusText || `Request failed with status ${response.status}`,
+      message: response.statusText || `请求失败，状态码 ${response.status}`,
       timestamp: new Date().toISOString(),
     }
   }
-  const message = payload.message || 'Request failed'
+  const message = payload.message || '请求失败'
   const unauthorizedByMessage = options?.requireAuth && /token|unauthorized|login/i.test(message)
 
   if (!response.ok || !payload.success) {

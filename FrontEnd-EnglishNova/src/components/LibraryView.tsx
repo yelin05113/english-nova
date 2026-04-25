@@ -1,130 +1,84 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { SearchHit, WordDetail } from '../api/modules/search'
+import { useMemo, useState } from 'react'
+import type { PublicWordbook } from '../api/modules/search'
 import { useAppStateContext } from '../context/AppStateContext'
-import { formatMultilineText } from '../utils/text'
-import { SearchCard } from './SearchCard'
-import { WordDetailModal } from './WordDetailModal'
 
 export function LibraryView() {
   const {
     wordbooks,
     publicWordbooks,
-    publicWordbookEntries,
     selectedPublicWordbookId,
     setSelectedPublicWordbookId,
     selectedPublicWordbook,
     subscribingPublicWordbookId,
+    unsubscribingPublicWordbookId,
     resettingPublicWordbookId,
     handleSubscribePublicWordbook,
+    handleUnsubscribePublicWordbook,
     handleResetPublicWordbookProgress,
     selectedWordbookId,
     setSelectedWordbookId,
-    selectedWordbook,
-    wordbookProgress,
-    entries,
     creatingQuiz,
     handleCreateQuiz,
-    librarySearchQuery,
-    setLibrarySearchQuery,
-    librarySearchResult,
-    librarySearchSuggestions,
-    pickLibrarySearchSuggestion,
-    getWordDetail,
   } = useAppStateContext()
 
-  const [selectedDetail, setSelectedDetail] = useState<WordDetail | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const searchBoxRef = useRef<HTMLLabelElement | null>(null)
-  const isSearching = librarySearchQuery.trim().length > 0
+  const [unsubscribeMode, setUnsubscribeMode] = useState(false)
+  const [unsubscribeTarget, setUnsubscribeTarget] = useState<PublicWordbook | null>(null)
 
   const subscribedPublicWordbooks = useMemo(
     () => publicWordbooks.filter((book) => book.subscribed),
     [publicWordbooks],
   )
 
-  useEffect(() => {
-    return () => {
-      audioRef.current?.pause()
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel()
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    function handlePointerDown(event: MouseEvent) {
-      if (!searchBoxRef.current?.contains(event.target as Node)) {
-        setShowSuggestions(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    return () => document.removeEventListener('mousedown', handlePointerDown)
-  }, [])
-
-  async function openDetail(item: SearchHit) {
-    setShowSuggestions(false)
-    setDetailLoading(true)
-    try {
-      const detail = await getWordDetail(item.entryId, item.entryType)
-      setSelectedDetail(detail)
-      playAudio(detail)
-    } finally {
-      setDetailLoading(false)
-    }
-  }
-
-  function closeDetail() {
-    audioRef.current?.pause()
-    audioRef.current = null
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel()
-    }
-    setSelectedDetail(null)
-  }
-
-  function playAudio(detail: WordDetail) {
-    audioRef.current?.pause()
-    audioRef.current = null
-
-    if (detail.audioUrl) {
-      const audio = new Audio(detail.audioUrl)
-      audioRef.current = audio
-      void audio.play().catch(() => speak(detail.word))
-      return
-    }
-
-    speak(detail.word)
-  }
-
-  function speak(word: string) {
-    if (!('speechSynthesis' in window)) {
-      return
-    }
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(word)
-    utterance.lang = 'en-US'
-    window.speechSynthesis.speak(utterance)
-  }
-
   function onResetPublicWordbook() {
     if (!selectedPublicWordbookId) return
-    if (!window.confirm('Reset progress and clear wrong words for this public wordbook?')) {
+    if (!window.confirm('确定要重置这个公共词书的进度，并清空错词记录吗？')) {
       return
     }
     void handleResetPublicWordbookProgress(selectedPublicWordbookId)
   }
 
+  function requestUnsubscribe(book: PublicWordbook) {
+    setSelectedPublicWordbookId(book.id)
+    setUnsubscribeTarget(book)
+  }
+
+  async function confirmUnsubscribe() {
+    if (!unsubscribeTarget) return
+    const targetId = unsubscribeTarget.id
+    await handleUnsubscribePublicWordbook(targetId)
+    setUnsubscribeTarget(null)
+    setUnsubscribeMode(false)
+  }
+
+  function selectSubscribedWordbook(book: PublicWordbook) {
+    setSelectedPublicWordbookId(book.id)
+  }
+
   return (
     <>
-      <div className="split">
-        <div className="list">
-          <div className="toolbar">
+      <div className="pixel-library">
+        <section className="pixel-library-hero" aria-labelledby="library-title">
+          <div>
+            <p className="eyebrow">词书仓库</p>
+            <h2 id="library-title">像素词库</h2>
+          </div>
+          <div className="pixel-library-scene" aria-hidden="true">
+            <span className="pixel-shelf pixel-shelf-top" />
+            <span className="pixel-book pixel-book-a" />
+            <span className="pixel-book pixel-book-b" />
+            <span className="pixel-book pixel-book-c" />
+            <span className="pixel-shelf pixel-shelf-bottom" />
+            <span className="pixel-spark pixel-spark-a" />
+            <span className="pixel-spark pixel-spark-b" />
+          </div>
+        </section>
+
+        <div className="pixel-library-grid single">
+          <div className="list pixel-panel pixel-panel-menu">
+            <div className="toolbar pixel-toolbar">
             <div>
-              <p className="eyebrow">My imported wordbooks</p>
-              <h4>{wordbooks.length} total</h4>
+              <p className="eyebrow">我的导入词书</p>
+              <h4>共 {wordbooks.length} 本</h4>
             </div>
           </div>
           {wordbooks.length > 0 ? (
@@ -137,50 +91,100 @@ export function LibraryView() {
               >
                 <strong>{book.name}</strong>
                 <span>
-                  {book.wordCount} words, cleared {book.clearedCount}
+                  {book.wordCount} 词 / 已斩 {book.clearedCount}
                 </span>
               </button>
             ))
           ) : (
             <div className="meta">
-              <span className="meta-label">Imports</span>
-              <span className="meta-value">No imported wordbooks yet.</span>
+              <span className="meta-label">导入</span>
+              <span className="meta-value">还没有导入词书。</span>
             </div>
           )}
 
-          <div className="public-wordbooks">
-            <div className="toolbar public-wordbooks-head">
+          <div className="public-wordbooks pixel-section">
+            <div className="toolbar public-wordbooks-head pixel-toolbar">
               <div>
-                <p className="eyebrow">Subscribed public wordbooks</p>
-                <h4>{subscribedPublicWordbooks.length} subscribed</h4>
+                <p className="eyebrow">已订阅公共词书</p>
+                <h4>已订阅 {subscribedPublicWordbooks.length} 本</h4>
               </div>
+              {subscribedPublicWordbooks.length > 0 && (
+                <button
+                  type="button"
+                  className={unsubscribeMode ? 'ghost danger active' : 'ghost danger'}
+                  onClick={() => setUnsubscribeMode((current) => !current)}
+                >
+                  {unsubscribeMode ? '取消删除' : '删除订阅'}
+                </button>
+              )}
             </div>
             {subscribedPublicWordbooks.length > 0 ? (
               <div className="public-wordbook-grid">
                 {subscribedPublicWordbooks.map((book) => (
-                  <button
-                    key={book.id}
-                    type="button"
-                    className={book.id === selectedPublicWordbookId ? 'book active' : 'book'}
-                    onClick={() => setSelectedPublicWordbookId(book.id)}
-                  >
-                    <strong>{book.name}</strong>
-                    <span>
-                      {book.completedCount}/{book.wordCount} cleared, wrong words {book.wrongCount}
-                    </span>
-                  </button>
+                  <div key={book.id} className="public-subscription-item">
+                    <div className="public-subscription-row">
+                      <button
+                        type="button"
+                        className={book.id === selectedPublicWordbookId ? 'book active' : 'book'}
+                        onClick={() => selectSubscribedWordbook(book)}
+                      >
+                        <strong>{book.name}</strong>
+                        <span>
+                          已斩 {book.completedCount}/{book.wordCount} / 错词 {book.wrongCount}
+                        </span>
+                      </button>
+                      {unsubscribeMode && (
+                        <button
+                          type="button"
+                          className="unsubscribe-x"
+                          aria-label={`取消订阅 ${book.name}`}
+                          disabled={unsubscribingPublicWordbookId === book.id}
+                          onClick={() => requestUnsubscribe(book)}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                    {book.id === selectedPublicWordbookId && (
+                      <div className="subscribed-action-card" role="region" aria-label={`${book.name} 学习操作`}>
+                        <div className="subscribed-action-buttons">
+                          <button
+                            type="button"
+                            className="primary"
+                            onClick={() => void handleCreateQuiz('PUBLIC_WORDBOOK')}
+                            disabled={creatingQuiz}
+                          >
+                            {creatingQuiz ? '创建中...' : '继续学习'}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={onResetPublicWordbook}
+                            disabled={resettingPublicWordbookId === book.id}
+                          >
+                            {resettingPublicWordbookId === book.id ? '重置中...' : '重置进度'}
+                          </button>
+                        </div>
+                        <div className="subscribed-stat-box">
+                          <span>总计：{book.wordCount}</span>
+                          <span>已斩：{book.completedCount}</span>
+                          <span>错词：{book.wrongCount}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             ) : (
               <div className="meta">
-                <span className="meta-label">Subscriptions</span>
-                <span className="meta-value">Subscribe to a public wordbook to continue from saved progress.</span>
+                <span className="meta-label">订阅</span>
+                <span className="meta-value">订阅公共词书后，可以从保存的进度继续学习。</span>
               </div>
             )}
 
-            <div className="toolbar public-wordbooks-head">
+            <div className="toolbar public-wordbooks-head pixel-toolbar">
               <div>
-                <p className="eyebrow">Public wordbook catalog</p>
+                <p className="eyebrow">公共词书目录</p>
                 <h4>{selectedPublicWordbook?.name ?? 'ECDICT'}</h4>
               </div>
               <button
@@ -194,10 +198,10 @@ export function LibraryView() {
                 onClick={() => void handleSubscribePublicWordbook()}
               >
                 {selectedPublicWordbook?.subscribed
-                  ? 'Subscribed'
+                  ? '已订阅'
                   : subscribingPublicWordbookId === selectedPublicWordbookId
-                    ? 'Subscribing...'
-                    : 'Subscribe'}
+                    ? '订阅中...'
+                    : '订阅'}
               </button>
             </div>
             <div className="public-wordbook-grid">
@@ -210,192 +214,49 @@ export function LibraryView() {
                 >
                   <strong>{book.name}</strong>
                   <span>
-                    {book.wordCount} words | {book.subscribed ? 'Subscribed' : book.licenseName}
+                    {book.wordCount} 词 / {book.subscribed ? '已订阅' : book.licenseName}
                   </span>
                 </button>
               ))}
             </div>
           </div>
         </div>
-
-        <div className="list">
-          <div className="toolbar">
-            <div>
-              <p className="eyebrow">Selected imported wordbook</p>
-              <h4>{selectedWordbook?.name ?? 'None selected'}</h4>
-            </div>
-            <button
-              type="button"
-              className="primary"
-              onClick={() => void handleCreateQuiz('USER_WORDBOOK')}
-              disabled={creatingQuiz || !selectedWordbookId}
-            >
-              {creatingQuiz ? 'Creating...' : 'Start quiz'}
-            </button>
-          </div>
-
-          {selectedWordbookId ? (
-            <>
-              {wordbookProgress && (
-                <div className="meta">
-                  <span className="meta-label">Progress</span>
-                  <span className="meta-value">
-                    Total {wordbookProgress.wordCount} / Cleared {wordbookProgress.clearedCount} / In progress{' '}
-                    {wordbookProgress.inProgressCount}
-                  </span>
-                </div>
-              )}
-              <label className="search-box" ref={searchBoxRef}>
-                <span>Search inside the selected imported wordbook</span>
-                <input
-                  value={librarySearchQuery}
-                  disabled={!selectedWordbookId}
-                  onChange={(event) => {
-                    setLibrarySearchQuery(event.target.value)
-                    setShowSuggestions(true)
-                  }}
-                  onFocus={() => {
-                    if (librarySearchQuery.trim()) {
-                      setShowSuggestions(true)
-                    }
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape') {
-                      setShowSuggestions(false)
-                    }
-                  }}
-                />
-                {showSuggestions && librarySearchQuery.trim() && librarySearchSuggestions.length > 0 && (
-                  <div className="suggestion-list">
-                    {librarySearchSuggestions.map((item) => (
-                      <button
-                        key={`${item.entryType}-${item.entryId}`}
-                        type="button"
-                        className="suggestion-item"
-                        onClick={() => {
-                          setShowSuggestions(false)
-                          pickLibrarySearchSuggestion(item.word)
-                        }}
-                      >
-                        <strong>{item.word}</strong>
-                        <small>match {item.matchPercent}%</small>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </label>
-
-              {isSearching ? (
-                librarySearchResult.hits.length > 0 ? (
-                  librarySearchResult.hits.map((item) => (
-                    <SearchCard key={`${item.entryType}-${item.entryId}`} item={item} onOpen={openDetail} />
-                  ))
-                ) : (
-                  <div className="meta">
-                    <span className="meta-label">Search</span>
-                    <span className="meta-value">No matching entries inside the selected wordbook.</span>
-                  </div>
-                )
-              ) : (
-                entries.slice(0, 12).map((entry) => (
-                  <div key={entry.id} className="card">
-                    <strong>{entry.word}</strong>
-                    <span className="multiline-text">{formatMultilineText(entry.meaningCn)}</span>
-                    <small className="multiline-text">{formatMultilineText(entry.exampleSentence)}</small>
-                  </div>
-                ))
-              )}
-            </>
-          ) : (
-            <div className="meta">
-              <span className="meta-label">Imported wordbooks</span>
-              <span className="meta-value">Import a wordbook if you want a private list managed by yourself.</span>
-            </div>
-          )}
-
-          <div className="public-wordbooks">
-            <div className="toolbar public-wordbooks-head">
-              <div>
-                <p className="eyebrow">Selected public wordbook</p>
-                <h4>{selectedPublicWordbook?.name ?? 'None selected'}</h4>
-              </div>
-              <div className="toolbar-actions">
-                {selectedPublicWordbook?.subscribed ? (
-                  <>
-                    <button
-                      type="button"
-                      className="primary"
-                      onClick={() => void handleCreateQuiz('PUBLIC_WORDBOOK')}
-                      disabled={creatingQuiz || !selectedPublicWordbookId}
-                    >
-                      {creatingQuiz ? 'Creating...' : 'Continue'}
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={onResetPublicWordbook}
-                      disabled={!selectedPublicWordbookId || resettingPublicWordbookId != null}
-                    >
-                      {resettingPublicWordbookId === selectedPublicWordbookId ? 'Resetting...' : 'Reset progress'}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className="ghost"
-                    disabled={!selectedPublicWordbookId || subscribingPublicWordbookId != null}
-                    onClick={() => void handleSubscribePublicWordbook()}
-                  >
-                    {subscribingPublicWordbookId === selectedPublicWordbookId ? 'Subscribing...' : 'Subscribe'}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {selectedPublicWordbook ? (
-              <>
-                <div className="meta">
-                  <span className="meta-label">Progress</span>
-                  <span className="meta-value">
-                    Total {selectedPublicWordbook.wordCount} / Cleared {selectedPublicWordbook.completedCount} / Wrong
-                    words {selectedPublicWordbook.wrongCount} / Next #{selectedPublicWordbook.nextSortOrder}
-                  </span>
-                </div>
-                {publicWordbookEntries.length > 0 && (
-                  <div className="meta">
-                    <span className="meta-label">Preview</span>
-                    <span className="meta-value">
-                      {publicWordbookEntries.slice(0, 8).map((entry) => entry.word).join(', ')}
-                    </span>
-                  </div>
-                )}
-                {publicWordbookEntries.slice(0, 12).map((entry) => (
-                  <div key={entry.publicEntryId} className="card">
-                    <strong>
-                      #{entry.sortOrder} {entry.word}
-                    </strong>
-                    <span className="multiline-text">{formatMultilineText(entry.meaningCn)}</span>
-                    <small className="multiline-text">{formatMultilineText(entry.exampleSentence)}</small>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <div className="meta">
-                <span className="meta-label">Public wordbooks</span>
-                <span className="meta-value">Choose a public wordbook to subscribe or continue studying.</span>
-              </div>
-            )}
-          </div>
-        </div>
+      </div>
       </div>
 
-      {selectedDetail && (
-        <WordDetailModal
-          detail={selectedDetail}
-          loading={detailLoading}
-          onClose={closeDetail}
-          onReplayAudio={() => playAudio(selectedDetail)}
-        />
+      {unsubscribeTarget && (
+        <div className="modal-backdrop unsubscribe-backdrop" role="presentation">
+          <section className="modal-card unsubscribe-modal" role="dialog" aria-modal="true" aria-labelledby="unsubscribe-title">
+            <div className="panel-head">
+              <div>
+                <p className="eyebrow">取消订阅</p>
+                <h3 id="unsubscribe-title">是否确认取消订阅？</h3>
+              </div>
+            </div>
+            <div className="meta">
+              <span className="meta-label">词书</span>
+              <span className="meta-value">{unsubscribeTarget.name}</span>
+            </div>
+            <div className="unsubscribe-actions">
+              <button
+                type="button"
+                className="primary danger"
+                disabled={unsubscribingPublicWordbookId === unsubscribeTarget.id}
+                onClick={() => void confirmUnsubscribe()}
+              >
+                {unsubscribingPublicWordbookId === unsubscribeTarget.id ? '取消中...' : '是'}
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                disabled={unsubscribingPublicWordbookId === unsubscribeTarget.id}
+                onClick={() => setUnsubscribeTarget(null)}
+              >
+                否
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </>
   )

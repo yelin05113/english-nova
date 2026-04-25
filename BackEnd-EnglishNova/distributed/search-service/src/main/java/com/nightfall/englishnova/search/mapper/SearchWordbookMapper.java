@@ -25,6 +25,8 @@ public interface SearchWordbookMapper {
 
     void insertUserPublicWordbook(@Param("userId") long userId, @Param("publicWordbookId") long publicWordbookId);
 
+    int deleteUserPublicWordbook(@Param("userId") long userId, @Param("publicWordbookId") long publicWordbookId);
+
     int resetUserPublicWordbook(@Param("userId") long userId, @Param("publicWordbookId") long publicWordbookId);
 
     void deleteUserPublicWordbookWrongEntries(@Param("userId") long userId, @Param("publicWordbookId") long publicWordbookId);

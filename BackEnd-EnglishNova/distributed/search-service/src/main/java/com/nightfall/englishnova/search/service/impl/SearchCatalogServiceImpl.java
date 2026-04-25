@@ -262,6 +262,18 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     @Transactional
+    public PublicWordbookDto unsubscribePublicWordbook(long publicWordbookId, CurrentUser user) {
+        requirePublicWordbook(publicWordbookId);
+        int deleted = searchWordbookMapper.deleteUserPublicWordbook(user.id(), publicWordbookId);
+        if (deleted == 0) {
+            throw new NotFoundException("Public wordbook subscription not found");
+        }
+        searchWordbookMapper.deleteUserPublicWordbookWrongEntries(user.id(), publicWordbookId);
+        searchWordbookMapper.cancelActivePublicQuizSessions(user.id(), publicWordbookId);
+        return requireUserPublicWordbook(user.id(), publicWordbookId);
+    }
+
+    @Transactional
     public PublicWordbookDto resetPublicWordbookProgress(long publicWordbookId, CurrentUser user) {
         requirePublicWordbook(publicWordbookId);
         int updated = searchWordbookMapper.resetUserPublicWordbook(user.id(), publicWordbookId);

@@ -16,7 +16,6 @@ import {
 import {
   searchApi,
   type PublicWordbook,
-  type PublicWordbookEntry,
   type SearchEntryType,
   type SearchSuggestion,
   type WordSearchResponse,
@@ -85,7 +84,6 @@ export function useAppState() {
   const [wordbooks, setWordbooks] = useState<WordbookSummary[]>([])
   const [entries, setEntries] = useState<VocabularyEntry[]>([])
   const [publicWordbooks, setPublicWordbooks] = useState<PublicWordbook[]>([])
-  const [publicWordbookEntries, setPublicWordbookEntries] = useState<PublicWordbookEntry[]>([])
   const [selectedPublicWordbookId, setSelectedPublicWordbookId] = useState<number | null>(null)
   const [wordbookProgress, setWordbookProgress] = useState<WordbookProgress | null>(null)
   const [selectedWordbookId, setSelectedWordbookId] = useState<number | null>(null)
@@ -101,6 +99,7 @@ export function useAppState() {
   const [quizState, setQuizState] = useState<QuizSessionState | null>(null)
   const [creatingQuiz, setCreatingQuiz] = useState(false)
   const [subscribingPublicWordbookId, setSubscribingPublicWordbookId] = useState<number | null>(null)
+  const [unsubscribingPublicWordbookId, setUnsubscribingPublicWordbookId] = useState<number | null>(null)
   const [resettingPublicWordbookId, setResettingPublicWordbookId] = useState<number | null>(null)
 
   const [message, setMessage] = useState<string | null>(null)
@@ -133,13 +132,13 @@ export function useAppState() {
     setWordbooks([])
     setEntries([])
     setPublicWordbooks([])
-    setPublicWordbookEntries([])
     setSelectedPublicWordbookId(null)
     setWordbookProgress(null)
     setSelectedWordbookId(null)
     setQuizState(null)
     setCreatingQuiz(false)
     setSubscribingPublicWordbookId(null)
+    setUnsubscribingPublicWordbookId(null)
     setResettingPublicWordbookId(null)
     setSearchResult({ hits: [] })
     setSearchSuggestions([])
@@ -211,11 +210,11 @@ export function useAppState() {
         setError(
           firstFailedResult.reason instanceof Error
             ? firstFailedResult.reason.message
-            : 'Failed to load part of the workspace',
+            : '部分工作区数据加载失败',
         )
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to initialize the workspace')
+      setError(err instanceof Error ? err.message : '工作区初始化失败')
     } finally {
       setLoading(false)
     }
@@ -227,13 +226,13 @@ export function useAppState() {
     const remainingMs = tokenExpiresAt - Date.now()
     if (remainingMs <= 0) {
       clearAuth()
-      setError('Login expired after 30 minutes, please sign in again')
+      setError('登录已超过 30 分钟，请重新登录')
       return
     }
 
     const timer = window.setTimeout(() => {
       clearAuth()
-      setError('Login expired after 30 minutes, please sign in again')
+      setError('登录已超过 30 分钟，请重新登录')
     }, remainingMs)
 
     return () => {
@@ -263,7 +262,7 @@ export function useAppState() {
         }
       } catch (err) {
         if (alive) {
-          setError(err instanceof Error ? err.message : 'Failed to initialize the app')
+          setError(err instanceof Error ? err.message : '应用初始化失败')
         }
       }
     })()
@@ -292,7 +291,7 @@ export function useAppState() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load the wordbook')
+          setError(err instanceof Error ? err.message : '词书加载失败')
         }
       }
     })()
@@ -300,30 +299,6 @@ export function useAppState() {
       cancelled = true
     }
   }, [token, selectedWordbookId])
-
-  useEffect(() => {
-    if (!token || !selectedPublicWordbookId) {
-      setPublicWordbookEntries([])
-      return
-    }
-
-    let cancelled = false
-    ;(async () => {
-      try {
-        const entryData = await searchApi.listPublicWordbookEntries(selectedPublicWordbookId, authOptions())
-        if (!cancelled) {
-          setPublicWordbookEntries(entryData)
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load the public wordbook')
-        }
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [token, selectedPublicWordbookId])
 
   useEffect(() => {
     if (!token) return
@@ -340,10 +315,11 @@ export function useAppState() {
         const result = await searchApi.searchWords(query, authOptions())
         if (!cancelled) {
           setSearchResult(result)
+          setError(null)
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Search failed')
+          setError(err instanceof Error ? err.message : '搜索失败')
         }
       }
     })()
@@ -372,10 +348,11 @@ export function useAppState() {
         const result = await searchApi.searchWords(query, authOptions(), selectedWordbookId)
         if (!cancelled) {
           setLibrarySearchResult(result)
+          setError(null)
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Wordbook search failed')
+          setError(err instanceof Error ? err.message : '词书内搜索失败')
         }
       }
     })()
@@ -399,11 +376,12 @@ export function useAppState() {
         const suggestions = await searchApi.searchSuggestions(query, authOptions())
         if (!cancelled) {
           setSearchSuggestions(suggestions)
+          setError(null)
         }
       } catch (err) {
         if (!cancelled) {
           setSearchSuggestions([])
-          setError(err instanceof Error ? err.message : 'Failed to load suggestions')
+          setError(err instanceof Error ? err.message : '联想词加载失败')
         }
       }
     }, 160)
@@ -432,11 +410,12 @@ export function useAppState() {
         const suggestions = await searchApi.searchSuggestions(query, authOptions(), selectedWordbookId)
         if (!cancelled) {
           setLibrarySearchSuggestions(suggestions)
+          setError(null)
         }
       } catch (err) {
         if (!cancelled) {
           setLibrarySearchSuggestions([])
-          setError(err instanceof Error ? err.message : 'Failed to load wordbook suggestions')
+          setError(err instanceof Error ? err.message : '词书联想词加载失败')
         }
       }
     }, 160)
@@ -459,7 +438,7 @@ export function useAppState() {
       setUser(result.user)
       await loadPrivateData('/library', result.accessToken)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setError(err instanceof Error ? err.message : '登录失败')
     } finally {
       setLoading(false)
     }
@@ -479,10 +458,10 @@ export function useAppState() {
       persistSession(session)
       setStoredSession(session)
       setUser(result.user)
-      setSourceName(`${result.user.username}-wordbook`)
+      setSourceName(`${result.user.username}-词书`)
       await loadPrivateData('/imports', result.accessToken)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Register failed')
+      setError(err instanceof Error ? err.message : '注册失败')
     } finally {
       setLoading(false)
     }
@@ -503,7 +482,7 @@ export function useAppState() {
       setUser(result.user)
       setMessage('个人资料已更新。')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update profile')
+      setError(err instanceof Error ? err.message : '个人资料更新失败')
       throw err
     } finally {
       setLoading(false)
@@ -525,7 +504,7 @@ export function useAppState() {
       setUser(result.user)
       setMessage('头像已更新。')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload avatar')
+      setError(err instanceof Error ? err.message : '头像上传失败')
       throw err
     } finally {
       setLoading(false)
@@ -534,7 +513,7 @@ export function useAppState() {
 
   async function handleImport() {
     if (!selectedFile) {
-      setError('Please select a file first')
+      setError('请先选择导入文件')
       return
     }
     setError(null)
@@ -548,14 +527,14 @@ export function useAppState() {
         },
         authOptions(),
       )
-      setMessage(`Import finished. Added ${task.importedCards} entries.`)
+      setMessage(`导入完成，新增 ${task.importedCards} 条词条。`)
       setSelectedFile(null)
       await loadPrivateData('/library')
       if (task.wordbookId) {
         setSelectedWordbookId(task.wordbookId)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import failed')
+      setError(err instanceof Error ? err.message : '导入失败')
     }
   }
 
@@ -563,14 +542,14 @@ export function useAppState() {
     const resolvedTargetId =
       targetId ?? (targetType === 'PUBLIC_WORDBOOK' ? selectedPublicWordbookId : selectedWordbookId)
     if (!resolvedTargetId) {
-      setError(targetType === 'PUBLIC_WORDBOOK' ? 'Please select a public wordbook first' : 'Please select a wordbook first')
+      setError(targetType === 'PUBLIC_WORDBOOK' ? '请先选择一本公共词书' : '请先选择一本词书')
       return
     }
     if (creatingQuiz) {
       return
     }
     setError(null)
-    setMessage('Creating quiz session...')
+    setMessage('正在创建练习...')
     setCreatingQuiz(true)
     try {
       const result = await quizApi.createSession(
@@ -581,7 +560,7 @@ export function useAppState() {
       setMessage(null)
       navigate('/quiz')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start quiz')
+      setError(err instanceof Error ? err.message : '练习启动失败')
       setMessage(null)
     } finally {
       setCreatingQuiz(false)
@@ -602,7 +581,7 @@ export function useAppState() {
       )
       return result
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit answer')
+      setError(err instanceof Error ? err.message : '答案提交失败')
       return null
     }
   }
@@ -618,43 +597,67 @@ export function useAppState() {
 
   async function handleSubscribePublicWordbook(publicWordbookId = selectedPublicWordbookId) {
     if (!publicWordbookId) {
-      setError('Please select a public wordbook first')
+      setError('请先选择一本公共词书')
       return
     }
     setError(null)
-    setMessage('Subscribing to public wordbook...')
+    setMessage('正在订阅公共词书...')
     setSubscribingPublicWordbookId(publicWordbookId)
     try {
       const subscribed = await searchApi.subscribePublicWordbook(publicWordbookId, authOptions())
-      setMessage(`Subscribed to ${subscribed.name}.`)
+      setMessage(`已订阅 ${subscribed.name}。`)
       await loadPrivateData('/library')
       setSelectedPublicWordbookId(subscribed.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to subscribe to the public wordbook')
+      setError(err instanceof Error ? err.message : '公共词书订阅失败')
       setMessage(null)
     } finally {
       setSubscribingPublicWordbookId(null)
     }
   }
 
-  async function handleResetPublicWordbookProgress(publicWordbookId = selectedPublicWordbookId) {
+  async function handleUnsubscribePublicWordbook(publicWordbookId: number) {
     if (!publicWordbookId) {
-      setError('Please select a public wordbook first')
+      setError('请先选择一本公共词书')
       return
     }
     setError(null)
-    setMessage('Resetting public wordbook progress...')
+    setMessage('正在取消订阅...')
+    setUnsubscribingPublicWordbookId(publicWordbookId)
+    try {
+      const unsubscribed = await searchApi.unsubscribePublicWordbook(publicWordbookId, authOptions())
+      setMessage(`已取消订阅 ${unsubscribed.name}。`)
+      if (quizState?.session.targetType === 'PUBLIC_WORDBOOK' && quizState.session.targetId === publicWordbookId) {
+        setQuizState(null)
+      }
+      await loadPrivateData('/library')
+      setSelectedPublicWordbookId((current) => (current === publicWordbookId ? unsubscribed.id : current))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '取消订阅失败')
+      setMessage(null)
+    } finally {
+      setUnsubscribingPublicWordbookId(null)
+    }
+  }
+
+  async function handleResetPublicWordbookProgress(publicWordbookId = selectedPublicWordbookId) {
+    if (!publicWordbookId) {
+      setError('请先选择一本公共词书')
+      return
+    }
+    setError(null)
+    setMessage('正在重置公共词书进度...')
     setResettingPublicWordbookId(publicWordbookId)
     try {
       const reset = await searchApi.resetPublicWordbookProgress(publicWordbookId, authOptions())
-      setMessage(`Reset progress for ${reset.name}.`)
+      setMessage(`已重置 ${reset.name} 的进度。`)
       if (quizState?.session.targetType === 'PUBLIC_WORDBOOK' && quizState.session.targetId === publicWordbookId) {
         setQuizState(null)
       }
       await loadPrivateData('/library')
       setSelectedPublicWordbookId(reset.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reset public wordbook progress')
+      setError(err instanceof Error ? err.message : '公共词书进度重置失败')
       setMessage(null)
     } finally {
       setResettingPublicWordbookId(null)
@@ -688,11 +691,11 @@ export function useAppState() {
     wordbooks,
     entries,
     publicWordbooks,
-    publicWordbookEntries,
     selectedPublicWordbookId,
     setSelectedPublicWordbookId,
     selectedPublicWordbook,
     subscribingPublicWordbookId,
+    unsubscribingPublicWordbookId,
     resettingPublicWordbookId,
     wordbookProgress,
     selectedWordbookId,
@@ -738,6 +741,7 @@ export function useAppState() {
     handleUploadAvatar,
     handleImport,
     handleSubscribePublicWordbook,
+    handleUnsubscribePublicWordbook,
     handleResetPublicWordbookProgress,
     handleCreateQuiz,
     handleAnswer,
