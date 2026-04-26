@@ -13,6 +13,12 @@ public record QuizQuestionDto(
         PromptType promptType,
         @Schema(description = "Prompt text")
         String promptText,
+        @Schema(description = "Current vocabulary word")
+        String currentWord,
+        @Schema(description = "Prompt phonetic")
+        String phonetic,
+        @Schema(description = "Prompt audio URL")
+        String audioUrl,
         @Schema(description = "Available options")
         List<String> options,
         @Schema(description = "Current progress number")

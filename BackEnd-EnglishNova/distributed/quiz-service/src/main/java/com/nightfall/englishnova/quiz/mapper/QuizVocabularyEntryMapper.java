@@ -13,7 +13,13 @@ public interface QuizVocabularyEntryMapper {
     EntryVo loadWordbookEntryByOffset(@Param("userId") long userId, @Param("wordbookId") long wordbookId, @Param("offset") int offset);
     EntryVo loadPublicWordbookEntryBySortOrder(@Param("publicWordbookId") long publicWordbookId, @Param("sortOrder") int sortOrder);
     List<String> loadUserWordDistractors(@Param("userId") long userId, @Param("entryId") long entryId);
-    List<String> loadUserMeaningDistractors(@Param("userId") long userId, @Param("entryId") long entryId);
-    List<String> loadPublicWordDistractors(@Param("entryId") long entryId);
-    List<String> loadPublicMeaningDistractors(@Param("entryId") long entryId);
+    List<String> loadUserMeaningDistractors(
+            @Param("userId") long userId,
+            @Param("wordbookId") long wordbookId,
+            @Param("entryId") long entryId
+    );
+    List<String> loadPublicMeaningDistractors(
+            @Param("publicWordbookId") long publicWordbookId,
+            @Param("entryId") long entryId
+    );
 }

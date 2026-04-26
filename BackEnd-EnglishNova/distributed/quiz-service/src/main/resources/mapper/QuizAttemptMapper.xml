@@ -20,10 +20,25 @@
     </select>
 
     <select id="loadCurrentQuestion" resultType="com.nightfall.englishnova.quiz.domain.vo.QuestionVo">
-        SELECT id, prompt_type, prompt_text, option_a, option_b, option_c, option_d
-        FROM quiz_attempts
-        WHERE session_id = #{sessionId} AND selected_option IS NULL
-        ORDER BY id DESC
+        SELECT
+            qa.id,
+            qa.prompt_type AS promptType,
+            qa.prompt_text AS promptText,
+            CASE
+                WHEN qa.prompt_type = 'CN_TO_EN' THEN qa.correct_option
+                ELSE qa.prompt_text
+            END AS currentWord,
+            COALESCE(pv.phonetic, uv.phonetic, '') AS phonetic,
+            COALESCE(pv.audio_url, uv.audio_url, '') AS audioUrl,
+            qa.option_a AS optionA,
+            qa.option_b AS optionB,
+            qa.option_c AS optionC,
+            qa.option_d AS optionD
+        FROM quiz_attempts qa
+        LEFT JOIN public_vocabulary_entries pv ON pv.id = qa.public_entry_id
+        LEFT JOIN user_vocabulary_entries uv ON uv.id = qa.user_vocabulary_entry_id
+        WHERE qa.session_id = #{sessionId} AND qa.selected_option IS NULL
+        ORDER BY qa.id DESC
         LIMIT 1
     </select>
 

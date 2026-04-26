@@ -11,6 +11,9 @@ public class QuestionVo {
     private long id;
     private String promptType;
     private String promptText;
+    private String currentWord;
+    private String phonetic;
+    private String audioUrl;
     private String optionA;
     private String optionB;
     private String optionC;
