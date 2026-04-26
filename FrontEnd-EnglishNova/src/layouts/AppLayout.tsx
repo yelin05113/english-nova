@@ -3,10 +3,10 @@ import { useAppStateContext } from '../context/AppStateContext'
 import { Topbar } from '../components/Topbar'
 
 export function AppLayout() {
-  const { error, message } = useAppStateContext()
+  const { error, message, layoutMode } = useAppStateContext()
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell layout-${layoutMode}`}>
       <Topbar />
       {(error || message) && (
         <div className="toast-layer" aria-live="polite" aria-atomic="true">

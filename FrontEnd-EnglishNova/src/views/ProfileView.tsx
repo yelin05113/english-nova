@@ -113,7 +113,7 @@ async function createCroppedAvatar(file: File, transform: ImageTransform): Promi
 }
 
 export function ProfileView() {
-  const { user, loading, handleUpdateProfile, handleUploadAvatar } = useAppStateContext()
+  const { user, loading, layoutMode, setLayoutMode, handleUpdateProfile, handleUploadAvatar } = useAppStateContext()
   const [username, setUsername] = useState(user?.username ?? '')
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
@@ -404,6 +404,26 @@ export function ProfileView() {
         </div>
 
         <form className="form profile-form" onSubmit={(event) => void onSubmit(event)}>
+          <div className="layout-mode-box" role="group" aria-label="切换全局布局">
+            <span>全局布局</span>
+            <div className="layout-mode-options">
+              <button
+                type="button"
+                className={layoutMode === 'pixel' ? 'layout-mode-option active' : 'layout-mode-option'}
+                onClick={() => setLayoutMode('pixel')}
+              >
+                像素布局
+              </button>
+              <button
+                type="button"
+                className={layoutMode === 'default' ? 'layout-mode-option active' : 'layout-mode-option'}
+                onClick={() => setLayoutMode('default')}
+              >
+                默认布局
+              </button>
+            </div>
+          </div>
+
           <label>
             <span>姓名</span>
             <input

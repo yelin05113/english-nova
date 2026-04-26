@@ -24,9 +24,17 @@ import { studyApi, type StudyAgenda, type StudyProgress } from '../api/modules/s
 import { systemApi, type SystemOverview } from '../api/modules/system'
 import { DEFAULT_IMPORT_PLATFORM, TOKEN_KEY, TOKEN_TTL_MS } from '../constants'
 
+export type GlobalLayoutMode = 'pixel' | 'default'
+
 interface StoredAuthSession {
   token: string
   expiresAt: number
+}
+
+const LAYOUT_MODE_KEY = 'english-nova.layout-mode'
+
+function readLayoutMode(): GlobalLayoutMode {
+  return localStorage.getItem(LAYOUT_MODE_KEY) === 'default' ? 'default' : 'pixel'
 }
 
 function readStoredSession(): StoredAuthSession | null {
@@ -74,6 +82,7 @@ export function useAppState() {
   const [token, setToken] = useState(() => readStoredSession()?.token ?? '')
   const [tokenExpiresAt, setTokenExpiresAt] = useState(() => readStoredSession()?.expiresAt ?? 0)
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [layoutMode, setLayoutModeState] = useState<GlobalLayoutMode>(readLayoutMode)
 
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login')
 
@@ -115,8 +124,24 @@ export function useAppState() {
   const [selectedPlatform, setSelectedPlatform] = useState<ImportPlatform>(DEFAULT_IMPORT_PLATFORM)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
+  useEffect(() => {
+    if (!error && !message) return
+
+    const timer = window.setTimeout(() => {
+      setError((current) => (current === error ? null : current))
+      setMessage((current) => (current === message ? null : current))
+    }, 3800)
+
+    return () => window.clearTimeout(timer)
+  }, [error, message])
+
   function authOptions(authToken = token): ApiAuthOptions {
     return { token: authToken, onUnauthorized: clearAuth }
+  }
+
+  function setLayoutMode(nextMode: GlobalLayoutMode) {
+    setLayoutModeState(nextMode)
+    localStorage.setItem(LAYOUT_MODE_KEY, nextMode)
   }
 
   function clearAuth() {
@@ -681,6 +706,8 @@ export function useAppState() {
   return {
     token,
     user,
+    layoutMode,
+    setLayoutMode,
     clearAuth,
     authTab,
     setAuthTab,
