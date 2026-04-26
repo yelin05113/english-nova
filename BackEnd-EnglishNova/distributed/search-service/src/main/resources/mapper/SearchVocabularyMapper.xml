@@ -224,6 +224,7 @@
             phonetic,
             meaning_cn,
             example_sentence,
+            audio_url,
             '' AS category
         FROM public_vocabulary_entries
     </select>
@@ -240,11 +241,36 @@
         FROM user_vocabulary_entries
     </select>
 
+    <select id="loadPublicMissingAudioRows" resultType="com.nightfall.englishnova.search.domain.vo.VocabularyCleanupVo">
+        SELECT
+            id,
+            word,
+            import_source,
+            phonetic,
+            meaning_cn,
+            example_sentence,
+            audio_url,
+            '' AS category
+        FROM public_vocabulary_entries
+        WHERE (audio_url IS NULL OR audio_url = '')
+          AND import_source = 'ecdict'
+        ORDER BY id ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="countPublicMissingAudioRows" resultType="int">
+        SELECT COUNT(*)
+        FROM public_vocabulary_entries
+        WHERE (audio_url IS NULL OR audio_url = '')
+          AND import_source = 'ecdict'
+    </select>
+
     <update id="updatePublicVocabularyCleanup">
         UPDATE public_vocabulary_entries
         SET phonetic = #{phonetic},
             meaning_cn = #{meaningCn},
-            example_sentence = #{exampleSentence}
+            example_sentence = #{exampleSentence},
+            audio_url = #{audioUrl}
         WHERE id = #{id}
     </update>
 

@@ -60,10 +60,20 @@ export interface QuizSessionState {
   currentQuestion: QuizQuestion | null
 }
 
+export interface PublicWordbookProgressSnapshot {
+  publicWordbookId: number
+  completedCount: number
+  dailyTargetCount: number
+  todayCompletedCount: number
+  wordCount: number
+}
+
 export interface QuizAnswerResult {
   correct: boolean
   correctOption: string
   remainingQuestions: number
+  dailyTargetJustCompleted: boolean
+  publicWordbookProgress: PublicWordbookProgressSnapshot | null
   session: QuizSession
   nextQuestion: QuizQuestion | null
 }
@@ -106,6 +116,10 @@ async function createSession(payload: CreateQuizSessionRequest, options?: ApiAut
   )
 }
 
+async function getSessionState(sessionId: string, options?: ApiAuthOptions) {
+  return apiFetch<QuizSessionState>(`/quiz/sessions/${sessionId}`, undefined, withAuth(options))
+}
+
 async function answerQuestion(
   sessionId: string,
   payload: AnswerQuizQuestionRequest,
@@ -126,5 +140,6 @@ export const quizApi = {
   listWordbookEntries,
   getWordbookProgress,
   createSession,
+  getSessionState,
   answerQuestion,
 }

@@ -21,6 +21,11 @@
             CASE WHEN upw.id IS NULL THEN 0 ELSE 1 END AS subscribed,
             COALESCE(upw.completed_count, 0) AS completed_count,
             COALESCE(upw.wrong_count, 0) AS wrong_count,
+            COALESCE(upw.daily_target_count, 0) AS daily_target_count,
+            CASE
+                WHEN upw.daily_progress_date = CURRENT_DATE THEN COALESCE(upw.daily_completed_count, 0)
+                ELSE 0
+            END AS today_completed_count,
             CASE
                 WHEN upw.id IS NULL THEN 1
                 WHEN upw.current_sort_order >= pw.word_count THEN pw.word_count + 1
@@ -65,6 +70,11 @@
             CASE WHEN upw.id IS NULL THEN 0 ELSE 1 END AS subscribed,
             COALESCE(upw.completed_count, 0) AS completed_count,
             COALESCE(upw.wrong_count, 0) AS wrong_count,
+            COALESCE(upw.daily_target_count, 0) AS daily_target_count,
+            CASE
+                WHEN upw.daily_progress_date = CURRENT_DATE THEN COALESCE(upw.daily_completed_count, 0)
+                ELSE 0
+            END AS today_completed_count,
             CASE
                 WHEN upw.id IS NULL THEN 1
                 WHEN upw.current_sort_order >= pw.word_count THEN pw.word_count + 1
@@ -110,9 +120,12 @@
             current_sort_order,
             completed_count,
             wrong_count,
+            daily_target_count,
+            daily_completed_count,
+            daily_progress_date,
             subscribed_at
         )
-        VALUES(#{userId}, #{publicWordbookId}, 0, 0, 0, CURRENT_TIMESTAMP)
+        VALUES(#{userId}, #{publicWordbookId}, 0, 0, 0, 0, 0, NULL, CURRENT_TIMESTAMP)
     </insert>
 
     <delete id="deleteUserPublicWordbook">
@@ -126,7 +139,16 @@
         SET current_sort_order = 0,
             completed_count = 0,
             wrong_count = 0,
+            daily_completed_count = 0,
+            daily_progress_date = NULL,
             last_studied_at = NULL
+        WHERE user_id = #{userId}
+          AND public_wordbook_id = #{publicWordbookId}
+    </update>
+
+    <update id="updateUserPublicWordbookDailyTarget">
+        UPDATE user_public_wordbooks
+        SET daily_target_count = #{dailyTargetCount}
         WHERE user_id = #{userId}
           AND public_wordbook_id = #{publicWordbookId}
     </update>

@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useState } from 'react'
+import { useDeferredValue, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import type { ApiAuthOptions } from '../api/client'
 import { authApi, type AuthUser } from '../api/modules/auth'
@@ -22,16 +22,19 @@ import {
 } from '../api/modules/search'
 import { studyApi, type StudyAgenda, type StudyProgress } from '../api/modules/study'
 import { systemApi, type SystemOverview } from '../api/modules/system'
-import { DEFAULT_IMPORT_PLATFORM, TOKEN_KEY, TOKEN_TTL_MS } from '../constants'
+import { AUTH_IDLE_TIMEOUT_MS, DEFAULT_IMPORT_PLATFORM, TOKEN_KEY } from '../constants'
 
 export type GlobalLayoutMode = 'pixel' | 'default'
 
 interface StoredAuthSession {
   token: string
-  expiresAt: number
+  lastActivityAt: number
 }
 
 const LAYOUT_MODE_KEY = 'english-nova.layout-mode'
+const QUIZ_SESSION_KEY = 'english-nova.quiz-session-id'
+const SESSION_ACTIVITY_THROTTLE_MS = 1000
+const SESSION_ACTIVITY_EVENTS: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'input', 'touchstart', 'scroll']
 
 function readLayoutMode(): GlobalLayoutMode {
   return localStorage.getItem(LAYOUT_MODE_KEY) === 'default' ? 'default' : 'pixel'
@@ -47,7 +50,8 @@ function readStoredSession(): StoredAuthSession | null {
 
   try {
     const session = JSON.parse(raw) as StoredAuthSession
-    if (!session.token || typeof session.expiresAt !== 'number' || session.expiresAt <= Date.now()) {
+    const inactiveMs = Date.now() - session.lastActivityAt
+    if (!session.token || typeof session.lastActivityAt !== 'number' || inactiveMs >= AUTH_IDLE_TIMEOUT_MS) {
       sessionStorage.removeItem(TOKEN_KEY)
       return null
     }
@@ -61,7 +65,7 @@ function readStoredSession(): StoredAuthSession | null {
 function createStoredSession(token: string): StoredAuthSession {
   return {
     token,
-    expiresAt: Date.now() + TOKEN_TTL_MS,
+    lastActivityAt: Date.now(),
   }
 }
 
@@ -75,14 +79,25 @@ function clearStoredToken() {
   sessionStorage.removeItem(TOKEN_KEY)
 }
 
+function readStoredQuizSessionId() {
+  return sessionStorage.getItem(QUIZ_SESSION_KEY)
+}
+
+function persistQuizSessionId(sessionId: string) {
+  sessionStorage.setItem(QUIZ_SESSION_KEY, sessionId)
+}
+
+function clearStoredQuizSessionId() {
+  sessionStorage.removeItem(QUIZ_SESSION_KEY)
+}
+
 export function useAppState() {
   const navigate = useNavigate()
   const location = useLocation()
   const [storedSession, setStoredSession] = useState<StoredAuthSession | null>(readStoredSession)
-  const [token, setToken] = useState(() => readStoredSession()?.token ?? '')
-  const [tokenExpiresAt, setTokenExpiresAt] = useState(() => readStoredSession()?.expiresAt ?? 0)
   const [user, setUser] = useState<AuthUser | null>(null)
   const [layoutMode, setLayoutModeState] = useState<GlobalLayoutMode>(readLayoutMode)
+  const token = storedSession?.token ?? ''
 
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login')
 
@@ -124,16 +139,35 @@ export function useAppState() {
   const [selectedPlatform, setSelectedPlatform] = useState<ImportPlatform>(DEFAULT_IMPORT_PLATFORM)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  useEffect(() => {
-    if (!error && !message) return
+  const storedSessionRef = useRef(storedSession)
+  const lastActivityAtRef = useRef(storedSession?.lastActivityAt ?? 0)
+  const lastPersistedActivityAtRef = useRef(storedSession?.lastActivityAt ?? 0)
+  const idleTimerRef = useRef<number | null>(null)
+  const hasTrackedRouteActivityRef = useRef(false)
+  const loadPrivateDataRequestIdRef = useRef(0)
 
-    const timer = window.setTimeout(() => {
-      setError((current) => (current === error ? null : current))
-      setMessage((current) => (current === message ? null : current))
-    }, 3800)
+  function clearIdleTimer() {
+    if (idleTimerRef.current !== null) {
+      window.clearTimeout(idleTimerRef.current)
+      idleTimerRef.current = null
+    }
+  }
 
-    return () => window.clearTimeout(timer)
-  }, [error, message])
+  function storeSession(session: StoredAuthSession) {
+    persistSession(session)
+    storedSessionRef.current = session
+    lastActivityAtRef.current = session.lastActivityAt
+    lastPersistedActivityAtRef.current = session.lastActivityAt
+    setStoredSession(session)
+  }
+
+  function clearSessionState() {
+    clearStoredToken()
+    storedSessionRef.current = null
+    lastActivityAtRef.current = 0
+    lastPersistedActivityAtRef.current = 0
+    setStoredSession(null)
+  }
 
   function authOptions(authToken = token): ApiAuthOptions {
     return { token: authToken, onUnauthorized: clearAuth }
@@ -145,10 +179,9 @@ export function useAppState() {
   }
 
   function clearAuth() {
-    clearStoredToken()
-    setStoredSession(null)
-    setToken('')
-    setTokenExpiresAt(0)
+    clearIdleTimer()
+    clearSessionState()
+    hasTrackedRouteActivityRef.current = false
     setUser(null)
     navigate('/auth')
     setAgenda(null)
@@ -161,6 +194,7 @@ export function useAppState() {
     setWordbookProgress(null)
     setSelectedWordbookId(null)
     setQuizState(null)
+    clearStoredQuizSessionId()
     setCreatingQuiz(false)
     setSubscribingPublicWordbookId(null)
     setUnsubscribingPublicWordbookId(null)
@@ -172,12 +206,111 @@ export function useAppState() {
     setLibrarySearchSuggestions([])
   }
 
+  function syncPublicWordbookProgress(progress: {
+    publicWordbookId: number
+    completedCount: number
+    dailyTargetCount: number
+    todayCompletedCount: number
+    wordCount: number
+  }) {
+    setPublicWordbooks((current) =>
+      current.map((book) =>
+        book.id === progress.publicWordbookId
+          ? {
+              ...book,
+              wordCount: progress.wordCount,
+              completedCount: progress.completedCount,
+              dailyTargetCount: progress.dailyTargetCount,
+              todayCompletedCount: progress.todayCompletedCount,
+            }
+          : book,
+      ),
+    )
+  }
+
+  const handleIdleLogout = useEffectEvent(() => {
+    clearAuth()
+    setError('30 分钟无操作，已自动退出登录')
+  })
+
+  const scheduleIdleLogout = useEffectEvent(() => {
+    clearIdleTimer()
+
+    const currentSession = storedSessionRef.current
+    if (!currentSession?.token) {
+      return
+    }
+
+    const remainingMs = AUTH_IDLE_TIMEOUT_MS - (Date.now() - lastActivityAtRef.current)
+    if (remainingMs <= 0) {
+      handleIdleLogout()
+      return
+    }
+
+    idleTimerRef.current = window.setTimeout(() => {
+      const latestStoredSession = readStoredSession()
+      const latestActivityAt =
+        latestStoredSession && latestStoredSession.token === storedSessionRef.current?.token
+          ? Math.max(lastActivityAtRef.current, latestStoredSession.lastActivityAt)
+          : lastActivityAtRef.current
+
+      if (!storedSessionRef.current?.token || !latestActivityAt) {
+        return
+      }
+
+      lastActivityAtRef.current = latestActivityAt
+      const remainingAfterWake = AUTH_IDLE_TIMEOUT_MS - (Date.now() - latestActivityAt)
+      if (remainingAfterWake <= 0) {
+        handleIdleLogout()
+        return
+      }
+
+      scheduleIdleLogout()
+    }, remainingMs)
+  })
+
+  const flushSessionActivity = useEffectEvent(() => {
+    const currentSession = storedSessionRef.current
+    const latestActivityAt = lastActivityAtRef.current
+    if (!currentSession?.token || latestActivityAt <= lastPersistedActivityAtRef.current) {
+      return
+    }
+
+    const nextSession = { ...currentSession, lastActivityAt: latestActivityAt }
+    persistSession(nextSession)
+    storedSessionRef.current = nextSession
+    lastPersistedActivityAtRef.current = latestActivityAt
+    setStoredSession(nextSession)
+  })
+
+  const touchSessionActivity = useEffectEvent(() => {
+    const currentSession = storedSessionRef.current
+    if (!currentSession?.token) {
+      return
+    }
+
+    const now = Date.now()
+    lastActivityAtRef.current = now
+
+    if (now - lastPersistedActivityAtRef.current >= SESSION_ACTIVITY_THROTTLE_MS) {
+      const nextSession = { ...currentSession, lastActivityAt: now }
+      persistSession(nextSession)
+      storedSessionRef.current = nextSession
+      lastPersistedActivityAtRef.current = now
+      setStoredSession(nextSession)
+    }
+
+    scheduleIdleLogout()
+  })
+
   async function loadPrivateData(nextPath?: string, authToken = token) {
     if (!authToken) return
+    const requestId = ++loadPrivateDataRequestIdRef.current
     setLoading(true)
     try {
       const options = authOptions(authToken)
       const me = await authApi.me(options)
+      if (requestId !== loadPrivateDataRequestIdRef.current) return
       setUser(me)
 
       const [systemResult, studyResult, progressResult, presetResult, wordbookResult, publicWordbookResult] =
@@ -193,6 +326,7 @@ export function useAppState() {
       const presetData = presetResult.status === 'fulfilled' ? presetResult.value : []
       const wordbookData = wordbookResult.status === 'fulfilled' ? wordbookResult.value : []
       const publicWordbookData = publicWordbookResult.status === 'fulfilled' ? publicWordbookResult.value : []
+      if (requestId !== loadPrivateDataRequestIdRef.current) return
 
       if (systemResult.status === 'fulfilled') {
         setOverview(systemResult.value)
@@ -229,51 +363,112 @@ export function useAppState() {
         progressResult,
         presetResult,
         wordbookResult,
+        publicWordbookResult,
       ].find((result) => result.status === 'rejected')
 
       if (firstFailedResult?.status === 'rejected') {
         setError(
-          firstFailedResult.reason instanceof Error
-            ? firstFailedResult.reason.message
-            : '部分工作区数据加载失败',
+          firstFailedResult.reason instanceof Error ? firstFailedResult.reason.message : '部分工作区数据加载失败',
         )
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '工作区初始化失败')
     } finally {
-      setLoading(false)
+      if (requestId === loadPrivateDataRequestIdRef.current) {
+        setLoading(false)
+      }
     }
   }
 
   useEffect(() => {
-    if (!token) return
-
-    const remainingMs = tokenExpiresAt - Date.now()
-    if (remainingMs <= 0) {
-      clearAuth()
-      setError('登录已超过 30 分钟，请重新登录')
-      return
-    }
+    if (!error && !message) return
 
     const timer = window.setTimeout(() => {
-      clearAuth()
-      setError('登录已超过 30 分钟，请重新登录')
-    }, remainingMs)
+      setError((current) => (current === error ? null : current))
+      setMessage((current) => (current === message ? null : current))
+    }, 3800)
 
-    return () => {
-      window.clearTimeout(timer)
-    }
-  }, [token, tokenExpiresAt])
+    return () => window.clearTimeout(timer)
+  }, [error, message])
 
   useEffect(() => {
-    if (storedSession) {
-      setToken(storedSession.token)
-      setTokenExpiresAt(storedSession.expiresAt)
+    storedSessionRef.current = storedSession
+
+    if (!storedSession) {
+      clearIdleTimer()
       return
     }
-    setToken('')
-    setTokenExpiresAt(0)
+
+    lastActivityAtRef.current = Math.max(lastActivityAtRef.current, storedSession.lastActivityAt)
+    lastPersistedActivityAtRef.current = storedSession.lastActivityAt
   }, [storedSession])
+
+  useEffect(() => {
+    const sessionId = quizState?.session.id
+    if (sessionId) {
+      persistQuizSessionId(sessionId)
+    }
+  }, [quizState?.session.id])
+
+  useEffect(() => {
+    if (!token) {
+      clearIdleTimer()
+      return
+    }
+
+    scheduleIdleLogout()
+    return clearIdleTimer
+  }, [token])
+
+  useEffect(() => {
+    if (!token) {
+      return
+    }
+
+    const handleActivity = () => {
+      touchSessionActivity()
+    }
+
+    for (const eventName of SESSION_ACTIVITY_EVENTS) {
+      window.addEventListener(eventName, handleActivity, { passive: true })
+    }
+
+    return () => {
+      for (const eventName of SESSION_ACTIVITY_EVENTS) {
+        window.removeEventListener(eventName, handleActivity)
+      }
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (!token) {
+      hasTrackedRouteActivityRef.current = false
+      return
+    }
+
+    if (!hasTrackedRouteActivityRef.current) {
+      hasTrackedRouteActivityRef.current = true
+      return
+    }
+
+    touchSessionActivity()
+  }, [token, location.pathname, location.search])
+
+  useEffect(() => {
+    if (!token) {
+      return
+    }
+
+    const handlePageHide = () => {
+      flushSessionActivity()
+    }
+
+    window.addEventListener('pagehide', handlePageHide)
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide)
+      flushSessionActivity()
+    }
+  }, [token])
 
   useEffect(() => {
     let alive = true
@@ -295,6 +490,37 @@ export function useAppState() {
       alive = false
     }
   }, [])
+
+  useEffect(() => {
+    if (!token || quizState || location.pathname !== '/quiz') {
+      return
+    }
+
+    const sessionId = readStoredQuizSessionId()
+    if (!sessionId) {
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const restored = await quizApi.getSessionState(sessionId, authOptions())
+        if (cancelled) {
+          return
+        }
+        setQuizState(restored)
+      } catch {
+        if (!cancelled) {
+          clearStoredQuizSessionId()
+          setQuizState(null)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, location.pathname, quizState])
 
   useEffect(() => {
     if (!token || !selectedWordbookId) {
@@ -458,9 +684,9 @@ export function useAppState() {
     try {
       const result = await authApi.login({ account: account.trim(), password: loginPassword })
       const session = createStoredSession(result.accessToken)
-      persistSession(session)
-      setStoredSession(session)
+      storeSession(session)
       setUser(result.user)
+      scheduleIdleLogout()
       await loadPrivateData('/library', result.accessToken)
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败')
@@ -480,10 +706,10 @@ export function useAppState() {
         password: registerPassword,
       })
       const session = createStoredSession(result.accessToken)
-      persistSession(session)
-      setStoredSession(session)
+      storeSession(session)
       setUser(result.user)
       setSourceName(`${result.user.username}-词书`)
+      scheduleIdleLogout()
       await loadPrivateData('/imports', result.accessToken)
     } catch (err) {
       setError(err instanceof Error ? err.message : '注册失败')
@@ -500,12 +726,10 @@ export function useAppState() {
     try {
       const result = await authApi.updateProfile(payload, authOptions())
       const session = createStoredSession(result.accessToken)
-      persistSession(session)
-      setStoredSession(session)
-      setToken(result.accessToken)
-      setTokenExpiresAt(session.expiresAt)
+      storeSession(session)
       setUser(result.user)
-      setMessage('个人资料已更新。')
+      scheduleIdleLogout()
+      setMessage('个人资料已更新')
     } catch (err) {
       setError(err instanceof Error ? err.message : '个人资料更新失败')
       throw err
@@ -522,12 +746,10 @@ export function useAppState() {
     try {
       const result = await authApi.uploadAvatar(file, authOptions())
       const session = createStoredSession(result.accessToken)
-      persistSession(session)
-      setStoredSession(session)
-      setToken(result.accessToken)
-      setTokenExpiresAt(session.expiresAt)
+      storeSession(session)
       setUser(result.user)
-      setMessage('头像已更新。')
+      scheduleIdleLogout()
+      setMessage('头像已更新')
     } catch (err) {
       setError(err instanceof Error ? err.message : '头像上传失败')
       throw err
@@ -604,6 +826,9 @@ export function useAppState() {
         },
         authOptions(),
       )
+      if (result.publicWordbookProgress && result.session.targetType === 'PUBLIC_WORDBOOK') {
+        syncPublicWordbookProgress(result.publicWordbookProgress)
+      }
       return result
     } catch (err) {
       setError(err instanceof Error ? err.message : '答案提交失败')
@@ -689,6 +914,29 @@ export function useAppState() {
     }
   }
 
+  async function handleUpdatePublicWordbookDailyTarget(publicWordbookId: number, dailyTargetCount: number) {
+    if (!publicWordbookId) {
+      setError('请先选择一本公共词书')
+      return null
+    }
+    setError(null)
+    setMessage(null)
+    try {
+      const updated = await searchApi.updatePublicWordbookDailyTarget(
+        publicWordbookId,
+        { dailyTargetCount },
+        authOptions(),
+      )
+      setMessage(`每日背词数量已更新为 ${updated.dailyTargetCount} 个。`)
+      await loadPrivateData('/library')
+      setSelectedPublicWordbookId(updated.id)
+      return updated
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '每日背词数量更新失败')
+      return null
+    }
+  }
+
   function pickSearchSuggestion(value: string) {
     setSearchSuggestions([])
     setSearchQuery(value)
@@ -770,6 +1018,7 @@ export function useAppState() {
     handleSubscribePublicWordbook,
     handleUnsubscribePublicWordbook,
     handleResetPublicWordbookProgress,
+    handleUpdatePublicWordbookDailyTarget,
     handleCreateQuiz,
     handleAnswer,
     advanceQuiz,

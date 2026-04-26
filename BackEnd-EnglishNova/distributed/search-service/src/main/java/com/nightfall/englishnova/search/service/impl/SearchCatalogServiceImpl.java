@@ -14,6 +14,7 @@ import com.nightfall.englishnova.search.domain.vo.WordbookCleanupVo;
 import com.nightfall.englishnova.search.mapper.PublicCatalogImportJobMapper;
 import com.nightfall.englishnova.search.mapper.SearchVocabularyMapper;
 import com.nightfall.englishnova.search.mapper.SearchWordbookMapper;
+import com.nightfall.englishnova.search.service.AudioProxyPayload;
 import com.nightfall.englishnova.search.service.SearchCatalogService;
 import com.nightfall.englishnova.search.utools.SearchTextUtools;
 import com.nightfall.englishnova.shared.auth.CurrentUser;
@@ -25,6 +26,7 @@ import com.nightfall.englishnova.shared.dto.PublicWordbookDto;
 import com.nightfall.englishnova.shared.dto.PublicWordbookEntryDto;
 import com.nightfall.englishnova.shared.dto.SearchHitDto;
 import com.nightfall.englishnova.shared.dto.SearchSuggestionDto;
+import com.nightfall.englishnova.shared.dto.UpdatePublicWordbookDailyTargetRequest;
 import com.nightfall.englishnova.shared.dto.WordDetailDto;
 import com.nightfall.englishnova.shared.dto.WordSearchResponseDto;
 import com.nightfall.englishnova.shared.enums.VocabularyEntryType;
@@ -103,12 +105,19 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     private static final int DEFAULT_HIGH_FREQUENCY_LIMIT = 10000;
     private static final int DEFAULT_HIGH_FREQUENCY_BATCH_SIZE = 150;
     private static final int DEFAULT_BATCH_SIZE = 100;
+    private static final int DEFAULT_PUBLIC_AUDIO_BACKFILL_BATCH_SIZE = 500;
     private static final int SEARCH_RESULT_SIZE = 18;
     private static final int SEARCH_RESULT_FETCH_SIZE = 60;
     private static final int SUGGESTION_FETCH_SIZE = 40;
     private static final int SUGGESTION_LIMIT = 10;
     private static final String FREE_DICTIONARY_API_BASE_URL = "https://freedictionaryapi.com/api/v1";
     private static final String AUDIO_API_BASE_URL = "https://api.dictionaryapi.dev/api/v2/entries/en";
+    private static final String AUDIO_FALLBACK_BASE_URL = "https://dict.youdao.com/dictvoice?type=2&audio=";
+    private static final Set<String> AUDIO_PROXY_ALLOWED_HOSTS = Set.of(
+            "api.dictionaryapi.dev",
+            "dict.youdao.com",
+            "translate.google.com"
+    );
 
     private final SearchVocabularyMapper searchVocabularyMapper;
     private final SearchWordbookMapper searchWordbookMapper;
@@ -117,6 +126,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     private final HttpClient httpClient;
     private final String elasticsearchBaseUrl;
     private final AtomicBoolean importWorkerRunning = new AtomicBoolean(false);
+    private final AtomicBoolean publicAudioBackfillRunning = new AtomicBoolean(false);
     private volatile Map<String, EcdictCatalogEntry> ecdictCatalogCache;
 
     public SearchCatalogServiceImpl(
@@ -184,6 +194,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         if (entryType == VocabularyEntryType.PUBLIC && !audioUrl.isBlank() && !sameText(row.getAudioUrl(), audioUrl)) {
             searchVocabularyMapper.updatePublicAudioUrl(entryId, audioUrl);
         }
+        String clientAudioUrl = toClientAudioUrl(audioUrl);
 
         return new WordDetailDto(
                 row.getEntryId(),
@@ -206,8 +217,43 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 buildSourceLabel(row.getEntryType()),
                 UserFacingTextNormalizer.normalizeDisplayText(row.getSourceName()),
                 SearchTextUtools.normalizeImportSource(row.getImportSource()),
-                audioUrl
+                clientAudioUrl
         );
+    }
+
+    @Override
+    public AudioProxyPayload getAudioProxy(String sourceUrl) {
+        URI uri;
+        try {
+            uri = URI.create(sourceUrl);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Invalid audio source url", exception);
+        }
+
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+        if (!"https".equalsIgnoreCase(scheme) || host == null || !AUDIO_PROXY_ALLOWED_HOSTS.contains(host.toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("Unsupported audio source");
+        }
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(uri)
+                    .header("Accept", "audio/*,*/*;q=0.8")
+                    .header("User-Agent", "EnglishNova/1.0")
+                    .GET()
+                    .build();
+            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            if (response.statusCode() >= 400 || response.body() == null || response.body().length == 0) {
+                throw new IllegalStateException("Failed to fetch audio source");
+            }
+            String contentType = response.headers()
+                    .firstValue("Content-Type")
+                    .orElse("audio/mpeg");
+            return new AudioProxyPayload(response.body(), contentType);
+        } catch (IOException | InterruptedException exception) {
+            throw new IllegalStateException("Failed to proxy audio source", exception);
+        }
     }
 
     public List<PublicWordbookDto> listPublicWordbooks(CurrentUser user) {
@@ -224,6 +270,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                         row.isSubscribed(),
                         row.getCompletedCount(),
                         row.getWrongCount(),
+                        row.getDailyTargetCount(),
+                        row.getTodayCompletedCount(),
                         row.getNextSortOrder(),
                         row.getCreatedAt().toInstant().atOffset(ZoneOffset.UTC),
                         row.getUpdatedAt().toInstant().atOffset(ZoneOffset.UTC)
@@ -285,6 +333,26 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         return requireUserPublicWordbook(user.id(), publicWordbookId);
     }
 
+    @Transactional
+    public PublicWordbookDto updatePublicWordbookDailyTarget(
+            long publicWordbookId,
+            UpdatePublicWordbookDailyTargetRequest request,
+            CurrentUser user
+    ) {
+        PublicWordbookRow publicWordbook = requirePublicWordbook(publicWordbookId);
+        int dailyTargetCount = request.dailyTargetCount() == null ? 0 : request.dailyTargetCount();
+        int maxAllowedTarget = Math.min(1000, Math.max(publicWordbook.getWordCount(), 0));
+        if (dailyTargetCount > maxAllowedTarget) {
+            throw new IllegalArgumentException("每日背词数量超出当前词书可选范围");
+        }
+        int updated = searchWordbookMapper.updateUserPublicWordbookDailyTarget(user.id(), publicWordbookId, dailyTargetCount);
+        if (updated == 0) {
+            throw new NotFoundException("Public wordbook subscription not found");
+        }
+        searchWordbookMapper.cancelActivePublicQuizSessions(user.id(), publicWordbookId);
+        return requireUserPublicWordbook(user.id(), publicWordbookId);
+    }
+
     private PublicWordbookRow requirePublicWordbook(long publicWordbookId) {
         PublicWordbookRow row = searchWordbookMapper.findPublicWordbook(publicWordbookId);
         if (row == null) {
@@ -310,6 +378,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 row.isSubscribed(),
                 row.getCompletedCount(),
                 row.getWrongCount(),
+                row.getDailyTargetCount(),
+                row.getTodayCompletedCount(),
                 row.getNextSortOrder(),
                 row.getCreatedAt().toInstant().atOffset(ZoneOffset.UTC),
                 row.getUpdatedAt().toInstant().atOffset(ZoneOffset.UTC)
@@ -394,6 +464,36 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             processPublicCatalogImportJob(job);
         } finally {
             importWorkerRunning.set(false);
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${english-nova.search.public-audio-backfill-delay-ms:4000}")
+    public void backfillMissingPublicAudio() {
+        if (!publicAudioBackfillRunning.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            int batchSize = DEFAULT_PUBLIC_AUDIO_BACKFILL_BATCH_SIZE;
+            List<VocabularyCleanupVo> rows = searchVocabularyMapper.loadPublicMissingAudioRows(batchSize);
+            if (rows.isEmpty()) {
+                return;
+            }
+
+            int updated = 0;
+            for (VocabularyCleanupVo row : rows) {
+                String audioUrl = resolvePersistedAudioUrl(row.getWord(), row.getAudioUrl(), row.getImportSource());
+                if (!sameText(row.getAudioUrl(), audioUrl) && hasCleanText(audioUrl)) {
+                    searchVocabularyMapper.updatePublicAudioUrl(row.getId(), audioUrl);
+                    updated++;
+                }
+            }
+
+            if (updated > 0) {
+                int remaining = searchVocabularyMapper.countPublicMissingAudioRows();
+                log.info("Backfilled audio for {} public catalog entries in this batch, {} entries still missing audio", updated, remaining);
+            }
+        } finally {
+            publicAudioBackfillRunning.set(false);
         }
     }
 
@@ -1186,7 +1286,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 dictionaryApiExtras.exampleSentence(),
                 fetchFreeDictionaryApiExample(entry.word())
         );
-        String audioUrl = SearchTextUtools.normalizeAudioUrl(dictionaryApiExtras.audioUrl());
+        String audioUrl = resolveImportedAudioUrl(entry.word(), dictionaryApiExtras.audioUrl());
 
         if (!isCompletePublicEntryPayload(
                 entry.word(),
@@ -1215,8 +1315,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         );
     }
 
-        private String fetchAudioUrl(String word) {
-        return fetchDictionaryApiExtras(word).audioUrl();
+    private String fetchAudioUrl(String word) {
+        return resolveImportedAudioUrl(word, fetchDictionaryApiExtras(word).audioUrl());
     }
 
     private DictionaryApiExtras fetchDictionaryApiExtras(String word) {
@@ -1624,16 +1724,18 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         return updated;
     }
 
-        private int normalizeVocabularyEntries() {
+    private int normalizeVocabularyEntries() {
         int updated = 0;
         for (VocabularyCleanupVo row : searchVocabularyMapper.loadPublicVocabularyCleanupRows()) {
             String phonetic = resolvePersistedPhonetic(row.getWord(), row.getPhonetic(), row.getImportSource());
             String meaning = UserFacingTextNormalizer.normalizeMeaningText(row.getMeaningCn());
             String example = UserFacingTextNormalizer.normalizeDisplayText(row.getExampleSentence());
+            String audioUrl = resolvePersistedAudioUrl(row.getWord(), row.getAudioUrl(), row.getImportSource());
             if (!sameText(row.getPhonetic(), phonetic)
                     || !sameText(row.getMeaningCn(), meaning)
-                    || !sameText(row.getExampleSentence(), example)) {
-                searchVocabularyMapper.updatePublicVocabularyCleanup(row.getId(), phonetic, meaning, example);
+                    || !sameText(row.getExampleSentence(), example)
+                    || !sameText(row.getAudioUrl(), audioUrl)) {
+                searchVocabularyMapper.updatePublicVocabularyCleanup(row.getId(), phonetic, meaning, example, audioUrl);
                 updated++;
             }
         }
@@ -1669,6 +1771,43 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             return normalized;
         }
         return catalogEntry.phonetic();
+    }
+
+    private String resolvePersistedAudioUrl(String word, String audioUrl, String importSource) {
+        String normalized = SearchTextUtools.normalizeAudioUrl(audioUrl);
+        if (hasCleanText(normalized)) {
+            return normalized;
+        }
+        if (!PUBLIC_IMPORT_SOURCE.equalsIgnoreCase(SearchTextUtools.normalizeImportSource(importSource))) {
+            return normalized;
+        }
+        if (word == null || word.isBlank() || !shouldHydrate(word)) {
+            return normalized;
+        }
+        return buildFallbackAudioUrl(word);
+    }
+
+    private String resolveImportedAudioUrl(String word, String audioUrl) {
+        String normalized = SearchTextUtools.normalizeAudioUrl(audioUrl);
+        if (hasCleanText(normalized)) {
+            return normalized;
+        }
+        return buildFallbackAudioUrl(word);
+    }
+
+    private String toClientAudioUrl(String audioUrl) {
+        String normalized = SearchTextUtools.normalizeAudioUrl(audioUrl);
+        if (!hasCleanText(normalized)) {
+            return "";
+        }
+        return "/search/audio-proxy?src=" + URLEncoder.encode(normalized, StandardCharsets.UTF_8);
+    }
+
+    private String buildFallbackAudioUrl(String word) {
+        if (word == null || word.isBlank() || !shouldHydrate(word)) {
+            return "";
+        }
+        return AUDIO_FALLBACK_BASE_URL + URLEncoder.encode(word.trim(), StandardCharsets.UTF_8);
     }
 
         private int normalizeWordbooks() {

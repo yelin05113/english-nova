@@ -20,6 +20,8 @@ public class PublicWordbookRow {
     private boolean subscribed;
     private int completedCount;
     private int wrongCount;
+    private int dailyTargetCount;
+    private int todayCompletedCount;
     private int nextSortOrder;
     private Timestamp createdAt;
     private Timestamp updatedAt;

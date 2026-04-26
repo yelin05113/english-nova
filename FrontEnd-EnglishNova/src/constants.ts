@@ -1,7 +1,7 @@
 import type { ImportPlatform } from './api/modules/imports'
 
 export const TOKEN_KEY = 'english-nova.jwt'
-export const TOKEN_TTL_MS = 30 * 60 * 1000
+export const AUTH_IDLE_TIMEOUT_MS = 30 * 60 * 1000
 export const DEFAULT_IMPORT_PLATFORM: ImportPlatform = 'ANKI'
 
 export const navItems: Array<{ path: string; label: string }> = [

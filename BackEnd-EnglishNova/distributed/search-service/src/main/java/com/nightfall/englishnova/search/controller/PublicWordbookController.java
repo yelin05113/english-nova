@@ -6,7 +6,10 @@ import com.nightfall.englishnova.shared.auth.RequestUserExtractor;
 import com.nightfall.englishnova.shared.common.ApiResponse;
 import com.nightfall.englishnova.shared.dto.PublicWordbookDto;
 import com.nightfall.englishnova.shared.dto.PublicWordbookEntryDto;
+import com.nightfall.englishnova.shared.dto.UpdatePublicWordbookDailyTargetRequest;
+import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -65,5 +68,15 @@ public class PublicWordbookController {
     ) {
         CurrentUser user = RequestUserExtractor.require(request);
         return ApiResponse.success(searchCatalogService.resetPublicWordbookProgress(id, user));
+    }
+
+    @PostMapping("/{id}/daily-target")
+    public ApiResponse<PublicWordbookDto> updateDailyTarget(
+            @PathVariable long id,
+            @Valid @RequestBody UpdatePublicWordbookDailyTargetRequest body,
+            HttpServletRequest request
+    ) {
+        CurrentUser user = RequestUserExtractor.require(request);
+        return ApiResponse.success(searchCatalogService.updatePublicWordbookDailyTarget(id, body, user));
     }
 }

@@ -10,6 +10,10 @@ public record QuizAnswerResultDto(
         String correctOption,
         @Schema(description = "Remaining question count")
         int remainingQuestions,
+        @Schema(description = "Whether the daily target was just completed after this answer")
+        boolean dailyTargetJustCompleted,
+        @Schema(description = "Updated public wordbook progress snapshot")
+        PublicWordbookProgressSnapshotDto publicWordbookProgress,
         @Schema(description = "Updated session summary")
         QuizSessionDto session,
         @Schema(description = "Next question")
