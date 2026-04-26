@@ -800,7 +800,7 @@ export function useAppState() {
     setCreatingQuiz(true)
     try {
       const result = await quizApi.createSession(
-        { targetType, targetId: resolvedTargetId, mode: quizMode },
+        { targetType, targetId: resolvedTargetId, mode: targetType === 'PUBLIC_WORDBOOK' ? 'EN_TO_CN' : quizMode },
         authOptions(),
       )
       setQuizState(result)

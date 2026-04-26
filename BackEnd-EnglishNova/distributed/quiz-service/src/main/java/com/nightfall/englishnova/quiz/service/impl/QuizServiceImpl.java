@@ -6,6 +6,7 @@ import com.nightfall.englishnova.quiz.domain.vo.EntryVo;
 import com.nightfall.englishnova.quiz.domain.vo.PublicWordbookSubscriptionVo;
 import com.nightfall.englishnova.quiz.domain.vo.QuestionVo;
 import com.nightfall.englishnova.quiz.domain.vo.SessionVo;
+import com.nightfall.englishnova.quiz.domain.vo.TodayAnswerStatsVo;
 import com.nightfall.englishnova.quiz.domain.vo.VocabularyEntryVo;
 import com.nightfall.englishnova.quiz.domain.vo.WordbookProgressVo;
 import com.nightfall.englishnova.quiz.domain.vo.WordbookSummaryVo;
@@ -40,6 +41,8 @@ import com.nightfall.englishnova.shared.text.UserFacingTextNormalizer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -111,7 +114,9 @@ public class QuizServiceImpl implements QuizService {
     public QuizSessionStateDto createSession(CurrentUser user, CreateQuizSessionRequest request) {
         QuizTargetType targetType = request.targetType() == null ? QuizTargetType.USER_WORDBOOK : request.targetType();
         long targetId = request.targetId() == null ? 0L : request.targetId();
-        QuizMode mode = request.mode() == null ? QuizMode.MIXED : request.mode();
+        QuizMode mode = targetType == QuizTargetType.PUBLIC_WORDBOOK
+                ? QuizMode.EN_TO_CN
+                : (request.mode() == null ? QuizMode.MIXED : request.mode());
 
         SessionSeed seed = resolveSessionSeed(user.id(), targetType, targetId);
         String sessionId = UUID.randomUUID().toString();
@@ -154,6 +159,7 @@ public class QuizServiceImpl implements QuizService {
 
         String selectedOption = request.selectedOption() == null ? "" : request.selectedOption().trim();
         boolean correct = attempt.getCorrectOption().equalsIgnoreCase(selectedOption);
+        boolean firstTryCorrect = correct && attempt.getWrongSubmissions() == 0;
         QuizTargetType targetType = QuizTargetType.valueOf(session.getTargetType());
         PublicWordbookProgressSnapshotDto publicWordbookProgress = null;
         boolean dailyTargetJustCompleted = false;
@@ -177,7 +183,7 @@ public class QuizServiceImpl implements QuizService {
                                 && updatedSubscription.getTodayCompletedCount() >= updatedSubscription.getDailyTargetCount()
                                 && updatedSubscription.getTodayCompletedCount() - 1 < updatedSubscription.getDailyTargetCount();
             }
-            sessionMapper.markCorrectAnswer(sessionId);
+            sessionMapper.markAnswered(sessionId, firstTryCorrect ? 1 : 0);
         } else {
             attemptMapper.recordWrongSubmission(attempt.getId());
             if (targetType == QuizTargetType.USER_WORDBOOK) {
@@ -270,15 +276,19 @@ public class QuizServiceImpl implements QuizService {
             return null;
         }
 
-        PromptType promptType = resolvePromptType(QuizMode.valueOf(session.getMode()), session.getAnsweredQuestions());
-        AttemptPayload payload = buildAttemptPayload(targetType, session.getUserId(), entry, promptType);
+        PromptType promptType = resolvePromptType(
+                QuizMode.valueOf(session.getMode()),
+                session.getAnsweredQuestions(),
+                targetType
+        );
+        AttemptPayload payload = buildAttemptPayload(targetType, session.getUserId(), session.getTargetId(), entry, promptType);
         attemptMapper.insertAttempt(toAttemptInsertRow(session, targetType, entry, promptType, payload));
 
         QuestionVo inserted = attemptMapper.loadCurrentQuestion(session.getId());
         if (inserted == null) {
             throw new IllegalStateException("Failed to create the next quiz question");
         }
-        return mapQuestion(inserted, session);
+        return mapQuestion(inserted, session, entry);
     }
 
     private EntryVo resolveNextEntry(SessionVo session, QuizTargetType targetType) {
@@ -296,10 +306,25 @@ public class QuizServiceImpl implements QuizService {
     }
 
     private QuizQuestionDto mapQuestion(QuestionVo row, SessionVo session) {
+        return mapQuestion(row, session, null);
+    }
+
+    private QuizQuestionDto mapQuestion(QuestionVo row, SessionVo session, EntryVo fallbackEntry) {
+        String phonetic = row.getPhonetic();
+        if ((phonetic == null || phonetic.isBlank()) && fallbackEntry != null) {
+            phonetic = fallbackEntry.getPhonetic();
+        }
+        String audioUrl = row.getAudioUrl();
+        if ((audioUrl == null || audioUrl.isBlank()) && fallbackEntry != null) {
+            audioUrl = fallbackEntry.getAudioUrl();
+        }
         return new QuizQuestionDto(
                 row.getId(),
                 PromptType.valueOf(row.getPromptType()),
                 row.getPromptText(),
+                resolveCurrentWord(row),
+                QuizTextUtools.normalizePhonetic(phonetic),
+                toClientAudioUrl(audioUrl),
                 List.of(row.getOptionA(), row.getOptionB(), row.getOptionC(), row.getOptionD()),
                 session.getAnsweredQuestions() + 1,
                 session.getTotalQuestions()
@@ -331,7 +356,10 @@ public class QuizServiceImpl implements QuizService {
         );
     }
 
-    private PromptType resolvePromptType(QuizMode mode, int index) {
+    private PromptType resolvePromptType(QuizMode mode, int index, QuizTargetType targetType) {
+        if (targetType == QuizTargetType.PUBLIC_WORDBOOK) {
+            return PromptType.EN_TO_CN;
+        }
         return switch (mode) {
             case CN_TO_EN -> PromptType.CN_TO_EN;
             case EN_TO_CN -> PromptType.EN_TO_CN;
@@ -339,14 +367,20 @@ public class QuizServiceImpl implements QuizService {
         };
     }
 
-    private AttemptPayload buildAttemptPayload(QuizTargetType targetType, long userId, EntryVo entry, PromptType promptType) {
+    private AttemptPayload buildAttemptPayload(
+            QuizTargetType targetType,
+            long userId,
+            long targetId,
+            EntryVo entry,
+            PromptType promptType
+    ) {
         String correctOption = promptType == PromptType.CN_TO_EN
                 ? TextRepairUtils.repair(entry.getWord())
                 : UserFacingTextNormalizer.normalizeMeaningText(entry.getMeaningCn());
         String promptText = promptType == PromptType.CN_TO_EN
                 ? UserFacingTextNormalizer.normalizeMeaningText(entry.getMeaningCn())
                 : TextRepairUtils.repair(entry.getWord());
-        List<String> distractors = loadDistractors(targetType, userId, entry.getId(), promptType, correctOption);
+        List<String> distractors = loadDistractors(targetType, userId, targetId, entry.getId(), promptType, correctOption);
         List<String> options = new ArrayList<>(distractors);
         options.add(correctOption);
         Collections.shuffle(options);
@@ -380,6 +414,7 @@ public class QuizServiceImpl implements QuizService {
     private List<String> loadDistractors(
             QuizTargetType targetType,
             long userId,
+            long targetId,
             long entryId,
             PromptType promptType,
             String correctOption
@@ -388,19 +423,17 @@ public class QuizServiceImpl implements QuizService {
         if (targetType == QuizTargetType.USER_WORDBOOK) {
             List<String> userCandidates = promptType == PromptType.CN_TO_EN
                     ? vocabularyEntryMapper.loadUserWordDistractors(userId, entryId)
-                    : vocabularyEntryMapper.loadUserMeaningDistractors(userId, entryId);
+                    : vocabularyEntryMapper.loadUserMeaningDistractors(userId, targetId, entryId);
             addCandidates(values, userCandidates, correctOption);
         }
 
-        if (values.size() < 3) {
-            List<String> publicCandidates = promptType == PromptType.CN_TO_EN
-                    ? vocabularyEntryMapper.loadPublicWordDistractors(entryId)
-                    : vocabularyEntryMapper.loadPublicMeaningDistractors(entryId);
+        if (targetType == QuizTargetType.PUBLIC_WORDBOOK) {
+            List<String> publicCandidates = vocabularyEntryMapper.loadPublicMeaningDistractors(targetId, entryId);
             addCandidates(values, publicCandidates, correctOption);
         }
 
         if (values.size() < 3) {
-            throw new IllegalArgumentException("Not enough distractors to generate a four-choice question");
+            throw new IllegalArgumentException("当前词书至少需要 4 个不同选项才能生成四选一题目");
         }
         return new ArrayList<>(values).subList(0, 3);
     }
@@ -425,6 +458,27 @@ public class QuizServiceImpl implements QuizService {
             return;
         }
         values.add(normalized);
+    }
+
+    private String toClientAudioUrl(String audioUrl) {
+        if (audioUrl == null || audioUrl.isBlank()) {
+            return "";
+        }
+        String normalized = audioUrl.trim();
+        if (normalized.startsWith("//")) {
+            normalized = "https:" + normalized;
+        }
+        return "/search/audio-proxy?src=" + URLEncoder.encode(normalized, StandardCharsets.UTF_8);
+    }
+
+    private String resolveCurrentWord(QuestionVo row) {
+        if (row.getCurrentWord() != null && !row.getCurrentWord().isBlank()) {
+            return TextRepairUtils.repair(row.getCurrentWord());
+        }
+        if (PromptType.CN_TO_EN.name().equals(row.getPromptType())) {
+            return TextRepairUtils.repair(row.getOptionA());
+        }
+        return TextRepairUtils.repair(row.getPromptText());
     }
 
     private SessionVo requireSession(long userId, String sessionId) {
@@ -479,6 +533,11 @@ public class QuizServiceImpl implements QuizService {
 
     private QuizSessionDto mapSession(SessionVo row) {
         QuizTargetType targetType = QuizTargetType.valueOf(row.getTargetType());
+        TodayAnswerStatsVo todayStats = sessionMapper.loadTodayAnswerStats(
+                row.getUserId(),
+                row.getTargetType(),
+                row.getTargetId()
+        );
         return new QuizSessionDto(
                 row.getId(),
                 row.getTargetId(),
@@ -488,6 +547,8 @@ public class QuizServiceImpl implements QuizService {
                 row.getTotalQuestions(),
                 row.getAnsweredQuestions(),
                 row.getCorrectAnswers(),
+                todayStats == null ? 0 : todayStats.getCorrectAttempts(),
+                todayStats == null ? 0 : todayStats.getTotalAttempts(),
                 row.getStatus()
         );
     }

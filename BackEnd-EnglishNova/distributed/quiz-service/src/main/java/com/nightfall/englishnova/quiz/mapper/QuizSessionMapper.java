@@ -1,6 +1,7 @@
 package com.nightfall.englishnova.quiz.mapper;
 
 import com.nightfall.englishnova.quiz.domain.vo.SessionVo;
+import com.nightfall.englishnova.quiz.domain.vo.TodayAnswerStatsVo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -25,5 +26,10 @@ public interface QuizSessionMapper {
     );
     SessionVo findByUserAndId(@Param("userId") long userId, @Param("sessionId") String sessionId);
     void completeSession(@Param("sessionId") String sessionId);
-    void markCorrectAnswer(@Param("sessionId") String sessionId);
+    void markAnswered(@Param("sessionId") String sessionId, @Param("correctIncrement") int correctIncrement);
+    TodayAnswerStatsVo loadTodayAnswerStats(
+            @Param("userId") long userId,
+            @Param("targetType") String targetType,
+            @Param("targetId") long targetId
+    );
 }

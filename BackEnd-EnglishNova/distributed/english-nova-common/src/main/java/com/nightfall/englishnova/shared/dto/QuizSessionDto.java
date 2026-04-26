@@ -22,6 +22,10 @@ public record QuizSessionDto(
         int answeredQuestions,
         @Schema(description = "Correct answer count")
         int correctAnswers,
+        @Schema(description = "Today's correct answer attempt count")
+        int todayCorrectAttempts,
+        @Schema(description = "Today's total answer attempt count")
+        int todayTotalAttempts,
         @Schema(description = "Session status")
         String status
 ) {

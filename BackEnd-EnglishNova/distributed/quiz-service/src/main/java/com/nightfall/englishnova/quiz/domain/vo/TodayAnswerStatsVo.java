@@ -7,10 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class EntryVo {
-    private long id;
-    private String word;
-    private String phonetic;
-    private String meaningCn;
-    private String audioUrl;
+public class TodayAnswerStatsVo {
+    private int correctAttempts;
+    private int totalAttempts;
 }

@@ -38,6 +38,9 @@ export interface QuizQuestion {
   attemptId: number
   promptType: PromptType
   promptText: string
+  currentWord: string
+  phonetic: string
+  audioUrl: string
   options: string[]
   progress: number
   totalQuestions: number
@@ -52,6 +55,8 @@ export interface QuizSession {
   totalQuestions: number
   answeredQuestions: number
   correctAnswers: number
+  todayCorrectAttempts: number
+  todayTotalAttempts: number
   status: string
 }
 
