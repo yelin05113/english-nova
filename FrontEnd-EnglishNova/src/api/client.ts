@@ -27,7 +27,11 @@ export async function apiFetch<T>(
     headers.set('Authorization', `Bearer ${options.token}`)
   }
 
-  const response = await fetch(path, { ...init, headers })
+  const response = await fetch(path, {
+    cache: init?.method && init.method.toUpperCase() !== 'GET' ? init.cache : 'no-store',
+    ...init,
+    headers,
+  })
   const responseText = await response.text()
   let payload: ApiResponse<T>
   try {

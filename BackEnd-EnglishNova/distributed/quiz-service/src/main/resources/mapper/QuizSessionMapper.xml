@@ -37,16 +37,16 @@
 
     <update id="markCorrectAnswer">
         UPDATE quiz_sessions
-        SET answered_questions = answered_questions + 1,
-            correct_answers = correct_answers + 1,
-            status = CASE
+        SET status = CASE
                 WHEN answered_questions + 1 &gt;= total_questions THEN 'COMPLETED'
                 ELSE status
             END,
             finished_at = CASE
                 WHEN answered_questions + 1 &gt;= total_questions THEN CURRENT_TIMESTAMP
                 ELSE finished_at
-            END
+            END,
+            answered_questions = answered_questions + 1,
+            correct_answers = correct_answers + 1
         WHERE id = #{sessionId}
     </update>
 </mapper>

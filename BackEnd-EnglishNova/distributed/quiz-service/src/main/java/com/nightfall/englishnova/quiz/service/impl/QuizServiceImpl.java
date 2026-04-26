@@ -19,6 +19,7 @@ import com.nightfall.englishnova.quiz.service.QuizService;
 import com.nightfall.englishnova.quiz.utools.QuizTextUtools;
 import com.nightfall.englishnova.shared.auth.CurrentUser;
 import com.nightfall.englishnova.shared.dto.CreateQuizSessionRequest;
+import com.nightfall.englishnova.shared.dto.PublicWordbookProgressSnapshotDto;
 import com.nightfall.englishnova.shared.dto.QuizAnswerRequest;
 import com.nightfall.englishnova.shared.dto.QuizAnswerResultDto;
 import com.nightfall.englishnova.shared.dto.QuizQuestionDto;
@@ -154,6 +155,8 @@ public class QuizServiceImpl implements QuizService {
         String selectedOption = request.selectedOption() == null ? "" : request.selectedOption().trim();
         boolean correct = attempt.getCorrectOption().equalsIgnoreCase(selectedOption);
         QuizTargetType targetType = QuizTargetType.valueOf(session.getTargetType());
+        PublicWordbookProgressSnapshotDto publicWordbookProgress = null;
+        boolean dailyTargetJustCompleted = false;
 
         if (correct) {
             attemptMapper.markSelected(attempt.getId(), selectedOption, true);
@@ -167,6 +170,12 @@ public class QuizServiceImpl implements QuizService {
                 );
             } else {
                 publicWordbookMapper.advanceAfterCorrect(user.id(), session.getTargetId());
+                PublicWordbookSubscriptionVo updatedSubscription = requirePublicWordbookSubscription(user.id(), session.getTargetId());
+                publicWordbookProgress = mapPublicWordbookProgress(updatedSubscription);
+                dailyTargetJustCompleted =
+                        updatedSubscription.getDailyTargetCount() > 0
+                                && updatedSubscription.getTodayCompletedCount() >= updatedSubscription.getDailyTargetCount()
+                                && updatedSubscription.getTodayCompletedCount() - 1 < updatedSubscription.getDailyTargetCount();
             }
             sessionMapper.markCorrectAnswer(sessionId);
         } else {
@@ -191,6 +200,10 @@ public class QuizServiceImpl implements QuizService {
             }
         }
 
+        if (targetType == QuizTargetType.PUBLIC_WORDBOOK && publicWordbookProgress == null) {
+            publicWordbookProgress = mapPublicWordbookProgress(requirePublicWordbookSubscription(user.id(), session.getTargetId()));
+        }
+
         SessionVo refreshedSession = requireSession(user.id(), sessionId);
         QuizQuestionDto nextQuestion = loadOrCreateCurrentQuestion(refreshedSession);
         if (nextQuestion == null && "ACTIVE".equals(refreshedSession.getStatus())) {
@@ -203,6 +216,8 @@ public class QuizServiceImpl implements QuizService {
                 correct,
                 attempt.getCorrectOption(),
                 remaining,
+                dailyTargetJustCompleted,
+                publicWordbookProgress,
                 mapSession(refreshedSession),
                 nextQuestion
         );
@@ -221,11 +236,18 @@ public class QuizServiceImpl implements QuizService {
             }
             case PUBLIC_WORDBOOK -> {
                 PublicWordbookSubscriptionVo subscription = requirePublicWordbookSubscription(userId, targetId);
-                int remaining = Math.max(0, subscription.getWordCount() - subscription.getCurrentSortOrder());
-                if (remaining <= 0) {
-                    throw new IllegalArgumentException("This public wordbook is already completed. Reset progress to study again");
+                if (subscription.getDailyTargetCount() <= 0) {
+                    throw new IllegalArgumentException("请先设置每日背词数量");
                 }
-                yield new SessionSeed(subscription.getCurrentSortOrder(), remaining);
+                int remainingTotal = Math.max(0, subscription.getWordCount() - subscription.getCurrentSortOrder());
+                if (remainingTotal <= 0) {
+                    throw new IllegalArgumentException("这本公共词书已经完成，请先重置进度");
+                }
+                int todayRemaining = Math.max(0, subscription.getDailyTargetCount() - subscription.getTodayCompletedCount());
+                if (todayRemaining <= 0) {
+                    throw new IllegalArgumentException("今日背词目标已完成，明天再来");
+                }
+                yield new SessionSeed(subscription.getCurrentSortOrder(), Math.min(remainingTotal, todayRemaining));
             }
         };
     }
@@ -467,6 +489,16 @@ public class QuizServiceImpl implements QuizService {
                 row.getAnsweredQuestions(),
                 row.getCorrectAnswers(),
                 row.getStatus()
+        );
+    }
+
+    private PublicWordbookProgressSnapshotDto mapPublicWordbookProgress(PublicWordbookSubscriptionVo row) {
+        return new PublicWordbookProgressSnapshotDto(
+                row.getPublicWordbookId(),
+                row.getCompletedCount(),
+                row.getDailyTargetCount(),
+                row.getTodayCompletedCount(),
+                row.getWordCount()
         );
     }
 

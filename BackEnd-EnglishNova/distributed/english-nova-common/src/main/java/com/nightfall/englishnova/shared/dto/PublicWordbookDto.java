@@ -28,6 +28,10 @@ public record PublicWordbookDto(
         int completedCount,
         @Schema(description = "Wrong-word count for the current user")
         int wrongCount,
+        @Schema(description = "Daily target count for the current user")
+        int dailyTargetCount,
+        @Schema(description = "Completed count for the current day")
+        int todayCompletedCount,
         @Schema(description = "Next sort order for the current user")
         int nextSortOrder,
         @Schema(description = "Creation time")

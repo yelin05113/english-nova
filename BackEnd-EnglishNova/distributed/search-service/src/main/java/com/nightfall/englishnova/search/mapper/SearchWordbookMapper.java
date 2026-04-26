@@ -29,6 +29,12 @@ public interface SearchWordbookMapper {
 
     int resetUserPublicWordbook(@Param("userId") long userId, @Param("publicWordbookId") long publicWordbookId);
 
+    int updateUserPublicWordbookDailyTarget(
+            @Param("userId") long userId,
+            @Param("publicWordbookId") long publicWordbookId,
+            @Param("dailyTargetCount") int dailyTargetCount
+    );
+
     void deleteUserPublicWordbookWrongEntries(@Param("userId") long userId, @Param("publicWordbookId") long publicWordbookId);
 
     void cancelActivePublicQuizSessions(@Param("userId") long userId, @Param("publicWordbookId") long publicWordbookId);

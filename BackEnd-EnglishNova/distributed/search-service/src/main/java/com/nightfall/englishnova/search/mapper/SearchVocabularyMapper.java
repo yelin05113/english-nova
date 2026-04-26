@@ -53,11 +53,16 @@ public interface SearchVocabularyMapper {
 
     List<VocabularyCleanupVo> loadUserVocabularyCleanupRows();
 
+    List<VocabularyCleanupVo> loadPublicMissingAudioRows(@Param("limit") int limit);
+
+    int countPublicMissingAudioRows();
+
     void updatePublicVocabularyCleanup(
             @Param("id") long id,
             @Param("phonetic") String phonetic,
             @Param("meaningCn") String meaningCn,
-            @Param("exampleSentence") String exampleSentence
+            @Param("exampleSentence") String exampleSentence,
+            @Param("audioUrl") String audioUrl
     );
 
     void updateUserVocabularyCleanup(

@@ -7,6 +7,11 @@
             upw.current_sort_order,
             upw.completed_count,
             upw.wrong_count,
+            upw.daily_target_count,
+            CASE
+                WHEN upw.daily_progress_date = CURRENT_DATE THEN upw.daily_completed_count
+                ELSE 0
+            END AS today_completed_count,
             pw.word_count
         FROM user_public_wordbooks upw
         JOIN public_wordbooks pw ON pw.id = upw.public_wordbook_id
@@ -37,6 +42,11 @@
         UPDATE user_public_wordbooks
         SET current_sort_order = current_sort_order + 1,
             completed_count = completed_count + 1,
+            daily_completed_count = CASE
+                WHEN daily_progress_date = CURRENT_DATE THEN daily_completed_count + 1
+                ELSE 1
+            END,
+            daily_progress_date = CURRENT_DATE,
             last_studied_at = CURRENT_TIMESTAMP
         WHERE user_id = #{userId}
           AND public_wordbook_id = #{publicWordbookId}

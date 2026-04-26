@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStateContext } from '../context/AppStateContext'
-import type { QuizMode } from '../api/modules/quiz'
+import type { PublicWordbookProgressSnapshot, QuizMode } from '../api/modules/quiz'
 
 interface OptionState {
   option: string
@@ -10,68 +10,122 @@ interface OptionState {
 interface Feedback {
   correct: boolean
   correctOption: string
+  dailyTargetJustCompleted: boolean
 }
 
 export function QuizView() {
-  const { quizMode, setQuizMode, quizState, creatingQuiz, handleCreateQuiz, handleAnswer, advanceQuiz } = useAppStateContext()
-  const onQuizModeChange = (mode: QuizMode) => setQuizMode(mode)
-  const onCreateQuiz = () =>
-    void handleCreateQuiz(quizState?.session.targetType ?? 'USER_WORDBOOK', quizState?.session.targetId)
-  const onAnswer = handleAnswer
-  const onAdvance = advanceQuiz
+  const { quizMode, setQuizMode, quizState, creatingQuiz, handleCreateQuiz, handleAnswer, advanceQuiz } =
+    useAppStateContext()
   const [optionStates, setOptionStates] = useState<OptionState[]>([])
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [dailyCompletion, setDailyCompletion] = useState<PublicWordbookProgressSnapshot | null>(null)
   const feedbackRef = useRef<HTMLDivElement>(null)
   const prevQuestionId = useRef<number | null>(null)
 
-  // Reset local state whenever the question changes
+  const question = quizState?.currentQuestion
+
   useEffect(() => {
-    const currentId = quizState?.currentQuestion?.attemptId ?? null
+    const currentId = question?.attemptId ?? null
     if (currentId !== prevQuestionId.current) {
       prevQuestionId.current = currentId
       setFeedback(null)
       setSubmitting(false)
       setOptionStates(
-        (quizState?.currentQuestion?.options ?? []).map((opt) => ({
-          option: opt,
+        (question?.options ?? []).map((option) => ({
+          option,
           status: 'idle',
         })),
       )
+
+      if (currentId != null) {
+        setDailyCompletion(null)
+      }
     }
-  }, [quizState?.currentQuestion?.attemptId])
+  }, [question?.attemptId, question?.options])
+
+  function onQuizModeChange(mode: QuizMode) {
+    setQuizMode(mode)
+  }
+
+  function onCreateQuiz() {
+    return handleCreateQuiz(quizState?.session.targetType ?? 'USER_WORDBOOK', quizState?.session.targetId)
+  }
+
+  function triggerDailyCompletion(snapshot: PublicWordbookProgressSnapshot | null) {
+    if (!snapshot) {
+      return
+    }
+
+    setDailyCompletion(snapshot)
+  }
 
   async function handleOptionClick(option: string) {
-    if (submitting) return
-    if (feedback?.correct) return
+    if (submitting || feedback?.correct) return
 
     setSubmitting(true)
-    const result = await onAnswer(option)
+    const result = await handleAnswer(option)
     setSubmitting(false)
 
     if (!result) return
 
-    setFeedback({ correct: result.correct, correctOption: result.correctOption })
+    setFeedback({
+      correct: result.correct,
+      correctOption: result.correctOption,
+      dailyTargetJustCompleted: result.dailyTargetJustCompleted,
+    })
 
     if (result.correct) {
-      // Mark this option green
       setOptionStates((prev) =>
-        prev.map((o) => (o.option === option ? { ...o, status: 'correct' } : o)),
+        prev.map((entry) => (entry.option === option ? { ...entry, status: 'correct' } : entry)),
       )
-      // Scroll feedback into view
-      setTimeout(() => feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80)
-      // Auto-advance shortly after the user sees the correct answer.
-      setTimeout(() => onAdvance(result), 500)
-    } else {
-      // Keep the wrong option marked and allow the user to continue trying.
-      setOptionStates((prev) =>
-        prev.map((o) => (o.option === option ? { ...o, status: 'wrong' } : o)),
-      )
-      setTimeout(() => feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80)
+
+      if (result.dailyTargetJustCompleted) {
+        triggerDailyCompletion(result.publicWordbookProgress)
+      }
+
+      window.setTimeout(() => feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80)
+      window.setTimeout(() => advanceQuiz(result), result.dailyTargetJustCompleted ? 1100 : 500)
+      return
     }
+
+    setOptionStates((prev) =>
+      prev.map((entry) => (entry.option === option ? { ...entry, status: 'wrong' } : entry)),
+    )
+    window.setTimeout(() => feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80)
   }
 
-  const question = quizState?.currentQuestion
+  function renderDailyCompletionCard(className = 'quiz-daily-complete') {
+    if (!dailyCompletion) {
+      return null
+    }
+
+    return (
+      <div className={`card ${className}`}>
+        <div className="daily-complete-fireworks" aria-hidden="true">
+          <span className="daily-complete-burst daily-complete-burst-a" />
+          <span className="daily-complete-burst daily-complete-burst-b" />
+          <span className="daily-complete-burst daily-complete-burst-c" />
+          <span className="daily-complete-burst daily-complete-burst-d" />
+          <span className="daily-complete-burst daily-complete-burst-e" />
+        </div>
+        <div className="quiz-daily-complete-copy">
+          <strong>今日学习任务已完成</strong>
+          <span>
+            今日已背 {dailyCompletion.todayCompletedCount}/{dailyCompletion.dailyTargetCount}，总进度{' '}
+            {dailyCompletion.completedCount}/{dailyCompletion.wordCount}。
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  const showDailyCompleteFeedback = feedback?.correct && feedback.dailyTargetJustCompleted && dailyCompletion
+  const answeredCount = quizState?.session.answeredQuestions ?? 0
+  const totalQuestions = question?.totalQuestions ?? quizState?.session.totalQuestions ?? 0
+  const displayedAnsweredCount =
+    question && feedback?.correct ? Math.min(totalQuestions, answeredCount + 1) : answeredCount
+  const progressPercent = totalQuestions > 0 ? Math.round((displayedAnsweredCount / totalQuestions) * 100) : 0
 
   return (
     <div className="list">
@@ -82,12 +136,12 @@ export function QuizView() {
             id="quiz-mode"
             name="quizMode"
             value={quizMode}
-            onChange={(e) => onQuizModeChange(e.target.value as QuizMode)}
+            onChange={(event) => onQuizModeChange(event.target.value as QuizMode)}
             disabled={!!question}
           >
             <option value="MIXED">混合模式</option>
-            <option value="CN_TO_EN">中文选四个英文</option>
-            <option value="EN_TO_CN">英文选四个中文</option>
+            <option value="CN_TO_EN">中文选英文</option>
+            <option value="EN_TO_CN">英文选中文</option>
           </select>
         </label>
         <button type="button" className="ghost" onClick={() => void onCreateQuiz()} disabled={creatingQuiz}>
@@ -97,28 +151,22 @@ export function QuizView() {
 
       {question ? (
         <>
-          {/* Progress bar */}
+          {showDailyCompleteFeedback ? renderDailyCompletionCard('quiz-daily-complete quiz-daily-complete--inline') : null}
+
           <div className="quiz-progress-wrap">
-            <div
-              className="quiz-progress-bar"
-              style={{
-                width: `${Math.round((question.progress / question.totalQuestions) * 100)}%`,
-              }}
-            />
+            <div className="quiz-progress-bar" style={{ width: `${progressPercent}%` }} />
             <span className="quiz-progress-label">
-              {question.progress} / {question.totalQuestions}
+              {displayedAnsweredCount} / {totalQuestions}
             </span>
           </div>
 
-          {/* Prompt card */}
           <div className="card big quiz-prompt-card">
             <span className="quiz-type-badge">
-              {question.promptType === 'CN_TO_EN' ? '中文 → 英文' : '英文 → 中文'}
+              {question.promptType === 'CN_TO_EN' ? '中文 -> 英文' : '英文 -> 中文'}
             </span>
             <strong>{question.promptText}</strong>
           </div>
 
-          {/* Options */}
           <div className="options">
             {optionStates.map(({ option, status }) => (
               <button
@@ -128,26 +176,32 @@ export function QuizView() {
                 onClick={() => void handleOptionClick(option)}
                 disabled={submitting || status === 'wrong' || feedback?.correct === true}
               >
-                <span className="option-icon">
-                  {status === 'correct' ? '✓' : status === 'wrong' ? '✗' : ''}
-                </span>
+                <span className="option-icon">{status === 'correct' ? '✓' : status === 'wrong' ? '✕' : ''}</span>
                 {option}
               </button>
             ))}
           </div>
 
-          {/* Feedback banner */}
-          <div ref={feedbackRef} className={`quiz-feedback${feedback ? (feedback.correct ? ' quiz-feedback--correct' : ' quiz-feedback--wrong') : ' quiz-feedback--hidden'}`}>
-            {feedback ? (
+          <div
+            ref={feedbackRef}
+            className={`quiz-feedback${
+              feedback
+                ? feedback.correct
+                  ? ' quiz-feedback--correct'
+                  : ' quiz-feedback--wrong'
+                : ' quiz-feedback--hidden'
+            }${showDailyCompleteFeedback ? ' quiz-feedback--celebrate' : ''}`}
+          >
+            {showDailyCompleteFeedback ? null : feedback ? (
               feedback.correct ? (
                 <>
-                  <span className="quiz-feedback-icon">🎉</span>
-                  <span>回答正确，正在前往下一题…</span>
+                  <span className="quiz-feedback-icon">✓</span>
+                  <span>回答正确，正在前往下一题。</span>
                 </>
               ) : (
                 <>
-                  <span className="quiz-feedback-icon">💡</span>
-                  <span>回答错误，请继续选择</span>
+                  <span className="quiz-feedback-icon">✕</span>
+                  <span>回答错误，请继续选择。</span>
                 </>
               )
             ) : null}
@@ -155,7 +209,7 @@ export function QuizView() {
         </>
       ) : (
         <div className="card">
-          <strong>{quizState ? '本轮词书已经斩完 🎊' : '还没有开始斩词'}</strong>
+          <strong>{quizState ? '本轮词书已经斩完' : '还没有开始背词'}</strong>
           <span>先从我的词书里选择一本词书。</span>
         </div>
       )}

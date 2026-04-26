@@ -8,6 +8,7 @@ import com.nightfall.englishnova.shared.dto.PublicCatalogImportResultDto;
 import com.nightfall.englishnova.shared.dto.PublicWordbookDto;
 import com.nightfall.englishnova.shared.dto.PublicWordbookEntryDto;
 import com.nightfall.englishnova.shared.dto.SearchSuggestionDto;
+import com.nightfall.englishnova.shared.dto.UpdatePublicWordbookDailyTargetRequest;
 import com.nightfall.englishnova.shared.dto.WordDetailDto;
 import com.nightfall.englishnova.shared.dto.WordSearchResponseDto;
 import com.nightfall.englishnova.shared.enums.VocabularyEntryType;
@@ -15,6 +16,8 @@ import com.nightfall.englishnova.shared.enums.VocabularyEntryType;
 import java.util.List;
 
 public interface SearchCatalogService {
+
+    AudioProxyPayload getAudioProxy(String sourceUrl);
 
     WordSearchResponseDto searchVocabulary(String keyword, CurrentUser user, Long wordbookId);
 
@@ -31,6 +34,8 @@ public interface SearchCatalogService {
     PublicWordbookDto unsubscribePublicWordbook(long publicWordbookId, CurrentUser user);
 
     PublicWordbookDto resetPublicWordbookProgress(long publicWordbookId, CurrentUser user);
+
+    PublicWordbookDto updatePublicWordbookDailyTarget(long publicWordbookId, UpdatePublicWordbookDailyTargetRequest request, CurrentUser user);
 
     PublicCatalogImportResultDto importPublicCatalog(PublicCatalogImportRequest request);
 

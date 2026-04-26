@@ -12,5 +12,7 @@ public class PublicWordbookSubscriptionVo {
     private int currentSortOrder;
     private int completedCount;
     private int wrongCount;
+    private int dailyTargetCount;
+    private int todayCompletedCount;
     private int wordCount;
 }

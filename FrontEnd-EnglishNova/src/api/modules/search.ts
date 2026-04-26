@@ -1,4 +1,5 @@
 import { apiFetch, type ApiAuthOptions } from '../client'
+
 export type SearchMatchType = 'EXACT' | 'PREFIX' | 'CONTAINS' | 'TEXT'
 export type SearchSuggestionMatchType = Exclude<SearchMatchType, 'TEXT'>
 export type SearchEntryType = 'PUBLIC' | 'USER'
@@ -75,6 +76,8 @@ export interface PublicWordbook {
   subscribed: boolean
   completedCount: number
   wrongCount: number
+  dailyTargetCount: number
+  todayCompletedCount: number
   nextSortOrder: number
   createdAt: string
   updatedAt: string
@@ -90,6 +93,10 @@ export interface PublicWordbookEntry {
   bncRank: number | null
   frqRank: number | null
   wordfreqZipf: number | null
+}
+
+export interface UpdatePublicWordbookDailyTargetRequest {
+  dailyTargetCount: number
 }
 
 function normalizeWordSearchResponse(
@@ -184,6 +191,21 @@ async function resetPublicWordbookProgress(publicWordbookId: number, options?: A
   )
 }
 
+async function updatePublicWordbookDailyTarget(
+  publicWordbookId: number,
+  payload: UpdatePublicWordbookDailyTargetRequest,
+  options?: ApiAuthOptions,
+) {
+  return apiFetch<PublicWordbook>(
+    `/public-wordbooks/${publicWordbookId}/daily-target`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    withAuth(options),
+  )
+}
+
 export const searchApi = {
   searchWords,
   searchSuggestions,
@@ -194,4 +216,5 @@ export const searchApi = {
   subscribePublicWordbook,
   unsubscribePublicWordbook,
   resetPublicWordbookProgress,
+  updatePublicWordbookDailyTarget,
 }
