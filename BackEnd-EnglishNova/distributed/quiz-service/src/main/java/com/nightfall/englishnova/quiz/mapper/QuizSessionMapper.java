@@ -27,6 +27,9 @@ public interface QuizSessionMapper {
     SessionVo findByUserAndId(@Param("userId") long userId, @Param("sessionId") String sessionId);
     void completeSession(@Param("sessionId") String sessionId);
     void markAnswered(@Param("sessionId") String sessionId, @Param("correctIncrement") int correctIncrement);
+
+    String loadUserQuizOptionStrategy(@Param("userId") long userId);
+
     TodayAnswerStatsVo loadTodayAnswerStats(
             @Param("userId") long userId,
             @Param("targetType") String targetType,

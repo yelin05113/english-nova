@@ -26,6 +26,8 @@
                 WHEN upw.daily_progress_date = CURRENT_DATE THEN COALESCE(upw.daily_completed_count, 0)
                 ELSE 0
             END AS today_completed_count,
+            COALESCE(stats.today_correct_attempts, 0) AS today_correct_attempts,
+            COALESCE(stats.today_total_attempts, 0) AS today_total_attempts,
             CASE
                 WHEN upw.id IS NULL THEN 1
                 WHEN upw.current_sort_order >= pw.word_count THEN pw.word_count + 1
@@ -37,6 +39,24 @@
         LEFT JOIN user_public_wordbooks upw
             ON upw.public_wordbook_id = pw.id
            AND upw.user_id = #{userId}
+        LEFT JOIN (
+            SELECT
+                qs.target_id AS public_wordbook_id,
+                SUM(CASE
+                    WHEN qa.is_correct = 1 AND qa.wrong_submissions = 0 THEN 1
+                    ELSE 0
+                END) AS today_correct_attempts,
+                SUM(CASE
+                    WHEN qa.wrong_submissions > 0 OR qa.selected_option IS NOT NULL THEN 1
+                    ELSE 0
+                END) AS today_total_attempts
+            FROM quiz_attempts qa
+            JOIN quiz_sessions qs ON qs.id = qa.session_id
+            WHERE qa.user_id = #{userId}
+              AND qs.target_type = 'PUBLIC_WORDBOOK'
+              AND DATE(COALESCE(qa.answered_at, qa.created_at)) = CURRENT_DATE
+            GROUP BY qs.target_id
+        ) stats ON stats.public_wordbook_id = pw.id
         ORDER BY FIELD(pw.tag, 'cet4', 'cet6', 'ky', 'toefl', 'ielts', 'gre'), pw.name
     </select>
 
@@ -75,6 +95,8 @@
                 WHEN upw.daily_progress_date = CURRENT_DATE THEN COALESCE(upw.daily_completed_count, 0)
                 ELSE 0
             END AS today_completed_count,
+            COALESCE(stats.today_correct_attempts, 0) AS today_correct_attempts,
+            COALESCE(stats.today_total_attempts, 0) AS today_total_attempts,
             CASE
                 WHEN upw.id IS NULL THEN 1
                 WHEN upw.current_sort_order >= pw.word_count THEN pw.word_count + 1
@@ -86,6 +108,24 @@
         LEFT JOIN user_public_wordbooks upw
             ON upw.public_wordbook_id = pw.id
            AND upw.user_id = #{userId}
+        LEFT JOIN (
+            SELECT
+                qs.target_id AS public_wordbook_id,
+                SUM(CASE
+                    WHEN qa.is_correct = 1 AND qa.wrong_submissions = 0 THEN 1
+                    ELSE 0
+                END) AS today_correct_attempts,
+                SUM(CASE
+                    WHEN qa.wrong_submissions > 0 OR qa.selected_option IS NOT NULL THEN 1
+                    ELSE 0
+                END) AS today_total_attempts
+            FROM quiz_attempts qa
+            JOIN quiz_sessions qs ON qs.id = qa.session_id
+            WHERE qa.user_id = #{userId}
+              AND qs.target_type = 'PUBLIC_WORDBOOK'
+              AND DATE(COALESCE(qa.answered_at, qa.created_at)) = CURRENT_DATE
+            GROUP BY qs.target_id
+        ) stats ON stats.public_wordbook_id = pw.id
         WHERE pw.id = #{publicWordbookId}
         LIMIT 1
     </select>
@@ -98,6 +138,9 @@
             v.phonetic,
             v.meaning_cn,
             v.example_sentence,
+            v.corrected_english,
+            v.chinese_sentence,
+            v.example_audio_url,
             v.bnc_rank,
             v.frq_rank,
             v.wordfreq_zipf

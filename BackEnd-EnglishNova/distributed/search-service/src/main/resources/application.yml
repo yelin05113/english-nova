@@ -2,7 +2,17 @@ spring:
   application:
     name: search-service
   config:
-    import: optional:nacos:${spring.application.name}.yaml
+    import:
+      - optional:classpath:application-local.yml
+      - optional:classpath:application-local.yaml
+      - optional:classpath:application-local.properties
+      - optional:nacos:${spring.application.name}.yaml
+      - optional:file:./application-local.yml
+      - optional:file:./application-local.yaml
+      - optional:file:./application-local.properties
+      - optional:file:../application-local.yml
+      - optional:file:../application-local.yaml
+      - optional:file:../application-local.properties
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:4407}/${MYSQL_DATABASE:english_nova}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
     username: ${MYSQL_USERNAME:english_nova}
@@ -45,6 +55,27 @@ english-nova:
     exchange: ${ENGLISH_NOVA_IMPORT_EXCHANGE:english-nova.import}
     index-queue: ${ENGLISH_NOVA_SEARCH_INDEX_QUEUE:english-nova.search.index.queue}
     routing-key: ${ENGLISH_NOVA_INDEXED_ROUTING_KEY:english.nova.wordbook.imported}
+    public-catalog:
+      external-dir: ${ENGLISH_NOVA_SEARCH_PUBLIC_CATALOG_EXTERNAL_DIR:.local/public-catalog}
+  enrichment:
+    openai:
+      base-url: ${DEEPSEEK_BASE_URL:${OPENAI_BASE_URL:https://api.openai.com/v1}}
+      api-key: ${DEEPSEEK_API_KEY:${OPENAI_API_KEY:}}
+      model: ${DEEPSEEK_MODEL:${OPENAI_MODEL:}}
+      tts-model: ${ENGLISH_NOVA_ENRICHMENT_TTS_MODEL:gpt-4o-mini-tts}
+      tts-voice: ${ENGLISH_NOVA_ENRICHMENT_TTS_VOICE:cedar}
+    batch-size: ${ENGLISH_NOVA_ENRICHMENT_BATCH_SIZE:30}
+    worker-concurrency: ${ENGLISH_NOVA_ENRICHMENT_WORKER_CONCURRENCY:12}
+    tts-concurrency: ${ENGLISH_NOVA_ENRICHMENT_TTS_CONCURRENCY:6}
+    max-retries: ${ENGLISH_NOVA_ENRICHMENT_MAX_RETRIES:3}
+    worker-delay-ms: ${ENGLISH_NOVA_ENRICHMENT_WORKER_DELAY_MS:1000}
+    backfill-delay-ms: ${ENGLISH_NOVA_ENRICHMENT_BACKFILL_DELAY_MS:10000}
+    public-limit: ${ENGLISH_NOVA_ENRICHMENT_PUBLIC_LIMIT:35000}
+    chat-max-turns: ${ENGLISH_NOVA_ENRICHMENT_CHAT_MAX_TURNS:5}
+    chat-timeout-seconds: ${ENGLISH_NOVA_ENRICHMENT_CHAT_TIMEOUT_SECONDS:60}
+    chat-max-output-chars: ${ENGLISH_NOVA_ENRICHMENT_CHAT_MAX_OUTPUT_CHARS:1800}
+    example-audio-enabled: ${ENGLISH_NOVA_ENRICHMENT_EXAMPLE_AUDIO_ENABLED:false}
+    example-audio-dir: ${ENGLISH_NOVA_ENRICHMENT_EXAMPLE_AUDIO_DIR:upload/example-audio}
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml

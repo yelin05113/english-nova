@@ -205,14 +205,14 @@
 
 ```json
 {
-  "sourceName": "high-frequency-5000",
+  "sourceName": "ecdict-high-frequency-5000",
   "limit": 5000,
   "batchSize": 150,
   "refreshExisting": false
 }
 ```
 
-- **Behavior**: creates a persistent background job. The worker reads `public-catalog/high-frequency-5000.txt`, imports in batches, skips existing public words unless refresh is enabled, and only stores entries whose word, phonetic, Chinese meaning, example, category, and audio URL are complete.
+- **Behavior**: creates a persistent background job. Supported `sourceName` values include the built-in `ecdict-high-frequency-10000` / `ecdict-high-frequency-5000` sources and any external `ecdict-full-*` chunks defined by the public catalog manifest. The worker imports in batches, skips existing public words unless refresh is enabled, and only stores entries whose `word`, `phonetic`, `meaning_cn`, and `audio_url` are complete.
 - **Response**: `ApiResponse<PublicCatalogImportJobDto>`
 
 #### 5.4.6 Public catalog import job status

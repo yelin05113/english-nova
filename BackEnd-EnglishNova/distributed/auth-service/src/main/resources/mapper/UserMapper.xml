@@ -21,7 +21,7 @@
     </select>
 
     <select id="findByAccount" resultType="com.nightfall.englishnova.auth.domain.po.UserPo">
-        SELECT id, username, email, avatar_url, password_hash, status
+        SELECT id, username, email, avatar_url, quiz_option_strategy, password_hash, status
         FROM users
         WHERE username = #{account} OR email = #{emailAccount}
         LIMIT 1
@@ -31,6 +31,12 @@
         UPDATE users
         SET username = #{username},
             avatar_url = #{avatarUrl}
+        WHERE id = #{userId}
+    </update>
+
+    <update id="updateQuizOptionStrategy">
+        UPDATE users
+        SET quiz_option_strategy = #{quizOptionStrategy}
         WHERE id = #{userId}
     </update>
 </mapper>

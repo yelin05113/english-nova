@@ -16,6 +16,12 @@ public record PublicWordbookEntryDto(
         String meaningCn,
         @Schema(description = "Example sentence")
         String exampleSentence,
+        @Schema(description = "Corrected English example sentence")
+        String correctedExampleSentence,
+        @Schema(description = "Chinese example sentence")
+        String chineseSentence,
+        @Schema(description = "AI generated example audio url")
+        String exampleAudioUrl,
         @Schema(description = "BNC rank")
         Integer bncRank,
         @Schema(description = "FRQ rank")

@@ -5,5 +5,6 @@ package com.nightfall.englishnova.shared.enums;
  */
 public enum QuizTargetType {
     USER_WORDBOOK,
-    PUBLIC_WORDBOOK
+    PUBLIC_WORDBOOK,
+    WORD_NOTEBOOK
 }

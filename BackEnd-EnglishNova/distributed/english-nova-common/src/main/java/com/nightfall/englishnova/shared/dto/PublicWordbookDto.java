@@ -32,6 +32,10 @@ public record PublicWordbookDto(
         int dailyTargetCount,
         @Schema(description = "Completed count for the current day")
         int todayCompletedCount,
+        @Schema(description = "Today's first-choice correct count for this wordbook")
+        int todayCorrectAttempts,
+        @Schema(description = "Today's first-choice total answer count for this wordbook")
+        int todayTotalAttempts,
         @Schema(description = "Next sort order for the current user")
         int nextSortOrder,
         @Schema(description = "Creation time")

@@ -30,7 +30,8 @@ public interface PublicCatalogImportJobMapper {
     void markItemImported(
             @Param("itemId") long itemId,
             @Param("entryId") long entryId,
-            @Param("status") String status
+            @Param("status") String status,
+            @Param("hasExample") boolean hasExample
     );
 
     void markItemSkipped(@Param("itemId") long itemId, @Param("entryId") Long entryId);

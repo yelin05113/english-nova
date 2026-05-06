@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 public final class UserFacingTextNormalizer {
 
     private static final Pattern ANGLE_SEGMENT = Pattern.compile("<\\s*([^<>]{0,24})\\s*>");
+    private static final Pattern MEANING_LABEL_SEGMENT = Pattern.compile("\\s*\\[[^\\[\\]]{1,16}]\\s*");
 
     private static final ThreadLocal<Transliterator> TRADITIONAL_TO_SIMPLIFIED =
             ThreadLocal.withInitial(() -> Transliterator.getInstance("Traditional-Simplified"));
@@ -80,7 +81,7 @@ public final class UserFacingTextNormalizer {
      * @return 规范化后的释义文本
      */
     public static String normalizeMeaningText(String value) {
-        String normalized = normalizeDisplayText(value);
+        String normalized = stripMeaningLabels(normalizeDisplayText(value));
         if (normalized.isBlank()) {
             return "";
         }
@@ -92,7 +93,7 @@ public final class UserFacingTextNormalizer {
 
         Set<String> deduplicated = new LinkedHashSet<>();
         for (String segment : segments) {
-            String candidate = normalizeDisplayText(segment);
+            String candidate = stripMeaningLabels(normalizeDisplayText(segment));
             if (!candidate.isBlank()) {
                 deduplicated.add(candidate);
             }
@@ -113,6 +114,16 @@ public final class UserFacingTextNormalizer {
         sanitized = sanitized.replaceAll("</?[^<>]+>", " ");
         sanitized = sanitized.replaceAll("\\s+", " ");
         return sanitized.trim();
+    }
+
+    private static String stripMeaningLabels(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return MEANING_LABEL_SEGMENT.matcher(value)
+                .replaceAll(" ")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     private static String unwrapAngleSegments(String value) {

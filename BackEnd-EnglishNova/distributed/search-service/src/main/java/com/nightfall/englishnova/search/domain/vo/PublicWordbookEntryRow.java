@@ -14,6 +14,9 @@ public class PublicWordbookEntryRow {
     private String phonetic;
     private String meaningCn;
     private String exampleSentence;
+    private String correctedEnglish;
+    private String chineseSentence;
+    private String exampleAudioUrl;
     private Integer bncRank;
     private Integer frqRank;
     private Double wordfreqZipf;

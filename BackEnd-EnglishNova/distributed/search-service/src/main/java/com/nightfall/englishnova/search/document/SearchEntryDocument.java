@@ -5,53 +5,48 @@ import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
-/**
- * Elasticsearch 搜索词条文档实体。
- */
 @Document(indexName = "english-nova-words")
 public class SearchEntryDocument {
 
-    /** 文档 ID（与 Elasticsearch _id 一致）。 */
     @Id
     private String id;
 
-    /** 词汇条目 ID。 */
     @Field(type = FieldType.Long)
     private Long entryId;
 
-    /** Entry type: PUBLIC or USER. */
     @Field(type = FieldType.Keyword)
     private String entryType;
 
-    /** 条目所属用户 ID。 */
     @Field(type = FieldType.Long)
     private Long ownerUserId;
 
-    /** 条目可见性（PUBLIC / PRIVATE）。 */
     @Field(type = FieldType.Keyword)
     private String visibility;
 
-    /** 所属词书 ID。 */
     @Field(type = FieldType.Long)
     private Long wordbookId;
 
-    /** 单词文本。 */
     @Field(type = FieldType.Text)
     private String word;
 
-    /** 音标。 */
     @Field(type = FieldType.Text)
     private String phonetic;
 
-    /** 中文释义。 */
     @Field(type = FieldType.Text)
     private String meaningCn;
 
-    /** 例句。 */
     @Field(type = FieldType.Text)
     private String exampleSentence;
 
-    /** 分类/词性。 */
+    @Field(type = FieldType.Text)
+    private String correctedEnglish;
+
+    @Field(type = FieldType.Text)
+    private String chineseSentence;
+
+    @Field(type = FieldType.Keyword)
+    private String exampleAudioUrl;
+
     @Field(type = FieldType.Text)
     private String category;
 
@@ -69,6 +64,9 @@ public class SearchEntryDocument {
             String phonetic,
             String meaningCn,
             String exampleSentence,
+            String correctedEnglish,
+            String chineseSentence,
+            String exampleAudioUrl,
             String category
     ) {
         this.id = id;
@@ -81,6 +79,9 @@ public class SearchEntryDocument {
         this.phonetic = phonetic;
         this.meaningCn = meaningCn;
         this.exampleSentence = exampleSentence;
+        this.correctedEnglish = correctedEnglish;
+        this.chineseSentence = chineseSentence;
+        this.exampleAudioUrl = exampleAudioUrl;
         this.category = category;
     }
 
@@ -162,6 +163,30 @@ public class SearchEntryDocument {
 
     public void setExampleSentence(String exampleSentence) {
         this.exampleSentence = exampleSentence;
+    }
+
+    public String getCorrectedEnglish() {
+        return correctedEnglish;
+    }
+
+    public void setCorrectedEnglish(String correctedEnglish) {
+        this.correctedEnglish = correctedEnglish;
+    }
+
+    public String getChineseSentence() {
+        return chineseSentence;
+    }
+
+    public void setChineseSentence(String chineseSentence) {
+        this.chineseSentence = chineseSentence;
+    }
+
+    public String getExampleAudioUrl() {
+        return exampleAudioUrl;
+    }
+
+    public void setExampleAudioUrl(String exampleAudioUrl) {
+        this.exampleAudioUrl = exampleAudioUrl;
     }
 
     public String getCategory() {

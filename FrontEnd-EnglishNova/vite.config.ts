@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => {
   const apiProxy = Object.fromEntries(
     [
       '^/auth/(login|register|me|profile|profile/avatar)$',
+      '^/auth/preferences/',
       '^/upload/images/',
       '^/system/',
       '^/study/',
@@ -16,6 +17,7 @@ export default defineConfig(({ mode }) => {
       '^/public-wordbooks',
       '^/imports/(presets|files)$',
       '^/wordbooks',
+      '^/word-notebooks',
       '^/quiz/sessions',
     ].map((path) => [path, { target: apiTarget, changeOrigin: true }]),
   )

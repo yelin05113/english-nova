@@ -20,6 +20,8 @@ public class UserPo {
     private String email;
     @TableField("avatar_url")
     private String avatarUrl;
+    @TableField("quiz_option_strategy")
+    private String quizOptionStrategy;
     private String passwordHash;
     private String status;
 }

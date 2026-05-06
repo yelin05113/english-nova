@@ -32,6 +32,12 @@ lerna-debug.log*
 
 # Local env files
 *.local
+BackEnd-EnglishNova/distributed/search-service/application-local.yml
+BackEnd-EnglishNova/distributed/search-service/application-local.yaml
+BackEnd-EnglishNova/distributed/search-service/application-local.properties
+BackEnd-EnglishNova/distributed/search-service/src/main/resources/application-local.yml
+BackEnd-EnglishNova/distributed/search-service/src/main/resources/application-local.yaml
+BackEnd-EnglishNova/distributed/search-service/src/main/resources/application-local.properties
 
 # OS / temp files
 .DS_Store

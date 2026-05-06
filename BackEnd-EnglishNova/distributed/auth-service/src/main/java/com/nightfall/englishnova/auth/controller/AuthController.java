@@ -8,6 +8,7 @@ import com.nightfall.englishnova.shared.dto.AuthTokenResponse;
 import com.nightfall.englishnova.shared.dto.AuthUserDto;
 import com.nightfall.englishnova.shared.dto.LoginRequest;
 import com.nightfall.englishnova.shared.dto.RegisterRequest;
+import com.nightfall.englishnova.shared.dto.UpdateQuizOptionStrategyRequest;
 import com.nightfall.englishnova.shared.dto.UpdateProfileRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -54,6 +55,15 @@ public class AuthController {
     ) {
         CurrentUser user = RequestUserExtractor.require(servletRequest);
         return ApiResponse.success(authService.updateProfile(user.id(), request));
+    }
+
+    @PatchMapping("/preferences/quiz-option-strategy")
+    public ApiResponse<AuthUserDto> updateQuizOptionStrategy(
+            HttpServletRequest servletRequest,
+            @Valid @RequestBody UpdateQuizOptionStrategyRequest request
+    ) {
+        CurrentUser user = RequestUserExtractor.require(servletRequest);
+        return ApiResponse.success(authService.updateQuizOptionStrategy(user.id(), request));
     }
 
     @PostMapping(value = "/profile/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

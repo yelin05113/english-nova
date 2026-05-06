@@ -8,8 +8,83 @@
         ORDER BY word ASC
     </select>
 
+    <select id="loadUserEntryById" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT id, word, phonetic, meaning_cn AS meaningCn, category, audio_url AS audioUrl
+        FROM user_vocabulary_entries
+        WHERE user_id = #{userId}
+          AND id = #{entryId}
+        LIMIT 1
+    </select>
+
+    <select id="loadPublicVocabularyEntryById" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT id,
+               word,
+               phonetic,
+               meaning_cn AS meaningCn,
+               '' AS category,
+               audio_url AS audioUrl,
+               example_sentence AS exampleSentence,
+               corrected_english AS correctedExampleSentence,
+               chinese_sentence AS chineseSentence,
+               example_audio_url AS exampleAudioUrl
+        FROM public_vocabulary_entries
+        WHERE id = #{entryId}
+        LIMIT 1
+    </select>
+
+    <select id="loadPublicEntryById" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT v.id,
+               v.word,
+               v.phonetic,
+               v.meaning_cn AS meaningCn,
+               '' AS category,
+               v.audio_url AS audioUrl,
+               v.example_sentence AS exampleSentence,
+               v.corrected_english AS correctedExampleSentence,
+               v.chinese_sentence AS chineseSentence,
+               v.example_audio_url AS exampleAudioUrl
+        FROM public_wordbook_entries m
+        JOIN public_vocabulary_entries v ON v.id = m.public_entry_id
+        WHERE m.public_wordbook_id = #{publicWordbookId}
+          AND v.id = #{entryId}
+        LIMIT 1
+    </select>
+
+    <select id="loadWordNotebookEntryById" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT e.id,
+               e.word,
+               e.phonetic,
+               e.meaning_cn AS meaningCn,
+               '' AS category,
+               '' AS audioUrl,
+               e.example_sentence AS exampleSentence,
+               e.corrected_example_sentence AS correctedExampleSentence,
+               e.chinese_sentence AS chineseSentence,
+               e.example_audio_url AS exampleAudioUrl,
+               e.option_a AS optionA,
+               e.option_a_word AS optionAWord,
+               e.option_a_meaning_cn AS optionAMeaningCn,
+               e.option_b AS optionB,
+               e.option_b_word AS optionBWord,
+               e.option_b_meaning_cn AS optionBMeaningCn,
+               e.option_c AS optionC,
+               e.option_c_word AS optionCWord,
+               e.option_c_meaning_cn AS optionCMeaningCn,
+               e.option_d AS optionD,
+               e.option_d_word AS optionDWord,
+               e.option_d_meaning_cn AS optionDMeaningCn,
+               e.correct_option AS correctOption,
+               e.source_entry_type AS sourceEntryType,
+               e.source_entry_id AS sourceEntryId
+        FROM word_notebook_entries e
+        JOIN word_notebooks n ON n.id = e.word_notebook_id
+        WHERE n.user_id = #{userId}
+          AND e.id = #{entryId}
+        LIMIT 1
+    </select>
+
     <select id="loadWordbookEntryByOffset" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
-        SELECT id, word, phonetic, meaning_cn AS meaningCn, audio_url AS audioUrl
+        SELECT id, word, phonetic, meaning_cn AS meaningCn, category, audio_url AS audioUrl
         FROM user_vocabulary_entries
         WHERE user_id = #{userId} AND wordbook_id = #{wordbookId}
         ORDER BY id ASC
@@ -17,12 +92,55 @@
     </select>
 
     <select id="loadPublicWordbookEntryBySortOrder" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
-        SELECT v.id, v.word, v.phonetic, v.meaning_cn AS meaningCn, v.audio_url AS audioUrl
+        SELECT v.id,
+               v.word,
+               v.phonetic,
+               v.meaning_cn AS meaningCn,
+               '' AS category,
+               v.audio_url AS audioUrl,
+               v.example_sentence AS exampleSentence,
+               v.corrected_english AS correctedExampleSentence,
+               v.chinese_sentence AS chineseSentence,
+               v.example_audio_url AS exampleAudioUrl
         FROM public_wordbook_entries m
         JOIN public_vocabulary_entries v ON v.id = m.public_entry_id
         WHERE m.public_wordbook_id = #{publicWordbookId}
           AND m.sort_order = #{sortOrder}
         LIMIT 1
+    </select>
+
+    <select id="loadWordNotebookEntryByOffset" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT e.id,
+               e.word,
+               e.phonetic,
+               e.meaning_cn AS meaningCn,
+               '' AS category,
+               '' AS audioUrl,
+               e.example_sentence AS exampleSentence,
+               e.corrected_example_sentence AS correctedExampleSentence,
+               e.chinese_sentence AS chineseSentence,
+               e.example_audio_url AS exampleAudioUrl,
+               e.option_a AS optionA,
+               e.option_a_word AS optionAWord,
+               e.option_a_meaning_cn AS optionAMeaningCn,
+               e.option_b AS optionB,
+               e.option_b_word AS optionBWord,
+               e.option_b_meaning_cn AS optionBMeaningCn,
+               e.option_c AS optionC,
+               e.option_c_word AS optionCWord,
+               e.option_c_meaning_cn AS optionCMeaningCn,
+               e.option_d AS optionD,
+               e.option_d_word AS optionDWord,
+               e.option_d_meaning_cn AS optionDMeaningCn,
+               e.correct_option AS correctOption,
+               e.source_entry_type AS sourceEntryType,
+               e.source_entry_id AS sourceEntryId
+        FROM word_notebook_entries e
+        JOIN word_notebooks n ON n.id = e.word_notebook_id
+        WHERE n.user_id = #{userId}
+          AND n.id = #{notebookId}
+        ORDER BY e.created_at DESC, e.id DESC
+        LIMIT 1 OFFSET #{offset}
     </select>
 
     <select id="loadUserWordDistractors" resultType="string">
@@ -51,5 +169,144 @@
           AND v.id &lt;&gt; #{entryId}
         ORDER BY RAND()
         LIMIT 12
+    </select>
+
+    <select id="loadUserDistractorCandidates" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT id, word, phonetic, meaning_cn AS meaningCn, category, audio_url AS audioUrl
+        FROM user_vocabulary_entries
+        WHERE user_id = #{userId}
+          AND wordbook_id = #{wordbookId}
+          AND id &lt;&gt; #{entryId}
+        ORDER BY id ASC
+        LIMIT 120
+    </select>
+
+    <select id="loadPublicDistractorCandidates" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT v.id,
+               v.word,
+               v.phonetic,
+               v.meaning_cn AS meaningCn,
+               '' AS category,
+               v.audio_url AS audioUrl,
+               v.example_sentence AS exampleSentence,
+               v.corrected_english AS correctedExampleSentence,
+               v.chinese_sentence AS chineseSentence,
+               v.example_audio_url AS exampleAudioUrl
+        FROM public_wordbook_entries m
+        JOIN public_vocabulary_entries v ON v.id = m.public_entry_id
+        WHERE m.public_wordbook_id = #{publicWordbookId}
+          AND v.id &lt;&gt; #{entryId}
+        ORDER BY m.sort_order ASC
+        LIMIT 160
+    </select>
+
+    <select id="loadWordNotebookDistractorCandidates" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT e.id,
+               e.word,
+               e.phonetic,
+               e.meaning_cn AS meaningCn,
+               '' AS category,
+               '' AS audioUrl,
+               e.example_sentence AS exampleSentence,
+               e.corrected_example_sentence AS correctedExampleSentence,
+               e.chinese_sentence AS chineseSentence,
+               e.example_audio_url AS exampleAudioUrl
+        FROM word_notebook_entries e
+        JOIN word_notebooks n ON n.id = e.word_notebook_id
+        WHERE n.user_id = #{userId}
+          AND n.id = #{notebookId}
+          AND e.id &lt;&gt; #{entryId}
+        ORDER BY e.created_at DESC, e.id DESC
+        LIMIT 160
+    </select>
+
+    <select id="loadNotebookFallbackDistractorCandidates" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT v.id,
+               v.word,
+               v.phonetic,
+               v.meaning_cn AS meaningCn,
+               '' AS category,
+               v.audio_url AS audioUrl,
+               v.example_sentence AS exampleSentence,
+               v.corrected_english AS correctedExampleSentence,
+               v.chinese_sentence AS chineseSentence,
+               v.example_audio_url AS exampleAudioUrl
+        FROM public_vocabulary_entries v
+        WHERE LOWER(v.word) &lt;&gt; LOWER(#{word})
+        ORDER BY v.id DESC
+        LIMIT 240
+    </select>
+
+    <select id="loadPublicRandomDistractorEntries" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT v.id,
+               v.word,
+               v.phonetic,
+               v.meaning_cn AS meaningCn,
+               '' AS category,
+               v.audio_url AS audioUrl,
+               v.example_sentence AS exampleSentence,
+               v.corrected_english AS correctedExampleSentence,
+               v.chinese_sentence AS chineseSentence,
+               v.example_audio_url AS exampleAudioUrl
+        FROM public_wordbook_entries m
+        JOIN public_vocabulary_entries v ON v.id = m.public_entry_id
+        WHERE m.public_wordbook_id = #{publicWordbookId}
+          AND v.id &lt;&gt; #{entryId}
+        ORDER BY RAND()
+        LIMIT 12
+    </select>
+
+    <select id="loadWordNotebookRandomDistractorEntries" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT e.id,
+               e.word,
+               e.phonetic,
+               e.meaning_cn AS meaningCn,
+               '' AS category,
+               '' AS audioUrl,
+               e.example_sentence AS exampleSentence,
+               e.corrected_example_sentence AS correctedExampleSentence,
+               e.chinese_sentence AS chineseSentence,
+               e.example_audio_url AS exampleAudioUrl
+        FROM word_notebook_entries e
+        JOIN word_notebooks n ON n.id = e.word_notebook_id
+        WHERE n.user_id = #{userId}
+          AND n.id = #{notebookId}
+          AND e.id &lt;&gt; #{entryId}
+        ORDER BY RAND()
+        LIMIT 12
+    </select>
+
+    <select id="loadNotebookFallbackRandomDistractorEntries" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT v.id,
+               v.word,
+               v.phonetic,
+               v.meaning_cn AS meaningCn,
+               '' AS category,
+               v.audio_url AS audioUrl,
+               v.example_sentence AS exampleSentence,
+               v.corrected_english AS correctedExampleSentence,
+               v.chinese_sentence AS chineseSentence,
+               v.example_audio_url AS exampleAudioUrl
+        FROM public_vocabulary_entries v
+        WHERE LOWER(v.word) &lt;&gt; LOWER(#{word})
+        ORDER BY RAND()
+        LIMIT 24
+    </select>
+
+    <select id="loadPublicWordbookOptionEntries" resultType="com.nightfall.englishnova.quiz.domain.vo.EntryVo">
+        SELECT v.id,
+               v.word,
+               v.phonetic,
+               v.meaning_cn AS meaningCn,
+               '' AS category,
+               v.audio_url AS audioUrl,
+               v.example_sentence AS exampleSentence,
+               v.corrected_english AS correctedExampleSentence,
+               v.chinese_sentence AS chineseSentence,
+               v.example_audio_url AS exampleAudioUrl
+        FROM public_wordbook_entries m
+        JOIN public_vocabulary_entries v ON v.id = m.public_entry_id
+        WHERE m.public_wordbook_id = #{publicWordbookId}
+        ORDER BY m.sort_order ASC
     </select>
 </mapper>

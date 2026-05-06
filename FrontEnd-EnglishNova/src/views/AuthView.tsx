@@ -1,3 +1,4 @@
+import { Link } from 'react-router'
 import type { FormEvent } from 'react'
 import { useAppStateContext } from '../context/AppStateContext'
 
@@ -40,13 +41,13 @@ export function AuthView() {
           <p className="notice error">{error}</p>
         </div>
       )}
-      <div className="auth-brand">
+      <Link to="/" className="auth-brand">
         <span className="logo">1103</span>
         <div>
           <p className="eyebrow">像素词库</p>
           <h1>单词学习控制台</h1>
         </div>
-      </div>
+      </Link>
 
       <section className="auth-layout">
         <article className="panel">

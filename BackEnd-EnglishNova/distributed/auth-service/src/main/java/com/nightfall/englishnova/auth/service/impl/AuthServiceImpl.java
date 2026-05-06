@@ -9,7 +9,9 @@ import com.nightfall.englishnova.shared.dto.AuthTokenResponse;
 import com.nightfall.englishnova.shared.dto.AuthUserDto;
 import com.nightfall.englishnova.shared.dto.LoginRequest;
 import com.nightfall.englishnova.shared.dto.RegisterRequest;
+import com.nightfall.englishnova.shared.dto.UpdateQuizOptionStrategyRequest;
 import com.nightfall.englishnova.shared.dto.UpdateProfileRequest;
+import com.nightfall.englishnova.shared.enums.QuizOptionStrategy;
 import com.nightfall.englishnova.shared.enums.UserStatus;
 import com.nightfall.englishnova.shared.exception.ForbiddenException;
 import com.nightfall.englishnova.shared.exception.UnauthorizedException;
@@ -51,6 +53,7 @@ public class AuthServiceImpl implements AuthService {
         user.setUsername(username);
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setQuizOptionStrategy(QuizOptionStrategy.RANDOM.name());
         user.setStatus(UserStatus.ACTIVE.name());
         userMapper.insert(user);
 
@@ -123,6 +126,18 @@ public class AuthServiceImpl implements AuthService {
         return new AuthTokenResponse(token, toAuthUser(user));
     }
 
+    @Override
+    @Transactional
+    public AuthUserDto updateQuizOptionStrategy(long userId, UpdateQuizOptionStrategyRequest request) {
+        UserPo user = requireActiveUser(userId);
+        QuizOptionStrategy strategy = request.quizOptionStrategy() == null
+                ? QuizOptionStrategy.RANDOM
+                : request.quizOptionStrategy();
+        userMapper.updateQuizOptionStrategy(userId, strategy.name());
+        user.setQuizOptionStrategy(strategy.name());
+        return toAuthUser(user);
+    }
+
     private void ensureUnique(String username, String email) {
         if (userMapper.countByUsername(username) > 0) {
             throw new IllegalArgumentException("用户名已存在");
@@ -133,7 +148,23 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private AuthUserDto toAuthUser(UserPo user) {
-        return new AuthUserDto(user.getId(), user.getUsername(), user.getAvatarUrl());
+        return new AuthUserDto(
+                user.getId(),
+                user.getUsername(),
+                user.getAvatarUrl(),
+                resolveQuizOptionStrategy(user.getQuizOptionStrategy())
+        );
+    }
+
+    private QuizOptionStrategy resolveQuizOptionStrategy(String value) {
+        if (value == null || value.isBlank()) {
+            return QuizOptionStrategy.RANDOM;
+        }
+        try {
+            return QuizOptionStrategy.valueOf(value);
+        } catch (IllegalArgumentException ignored) {
+            return QuizOptionStrategy.RANDOM;
+        }
     }
 
     private UserPo requireActiveUser(long userId) {

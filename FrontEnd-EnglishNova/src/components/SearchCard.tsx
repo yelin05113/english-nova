@@ -8,7 +8,11 @@ interface SearchCardProps {
 
 export function SearchCard({ item, onOpen }: SearchCardProps) {
   const meaningText = formatMultilineText(item.meaningCn)
-  const metaText = [item.importSource, formatMultilineText(item.exampleSentence)].filter(Boolean).join('\n')
+  const chineseSentenceText = formatMultilineText(item.chineseSentence)
+  const englishExampleText = formatMultilineText(item.correctedExampleSentence || item.exampleSentence)
+  const metaText = [item.importSource, englishExampleText, chineseSentenceText]
+    .filter(Boolean)
+    .join('\n')
 
   return (
     <button type="button" className="card search-card" onClick={() => onOpen(item)}>
@@ -20,6 +24,7 @@ export function SearchCard({ item, onOpen }: SearchCardProps) {
         </div>
       </div>
       <span className="search-meaning multiline-text">{meaningText}</span>
+      {item.chineseSentence ? <span className="search-meaning multiline-text">{chineseSentenceText}</span> : null}
       <small className="search-meta multiline-text">{metaText}</small>
     </button>
   )

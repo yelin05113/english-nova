@@ -1,0 +1,6 @@
+english-nova:
+  enrichment:
+    openai:
+      base-url: https://api.deepseek.com
+      api-key: sk-your-deepseek-key
+      model: deepseek-v4-pro

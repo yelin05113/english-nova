@@ -8,6 +8,8 @@ public record QuizAnswerResultDto(
         boolean correct,
         @Schema(description = "Correct option")
         String correctOption,
+        @Schema(description = "Option value accepted by the server for this attempt")
+        String selectedOption,
         @Schema(description = "Remaining question count")
         int remainingQuestions,
         @Schema(description = "Whether the daily target was just completed after this answer")

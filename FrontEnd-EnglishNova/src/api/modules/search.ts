@@ -12,6 +12,9 @@ export interface SearchHit {
   meaningCn: string
   source: string
   exampleSentence: string
+  correctedExampleSentence: string
+  chineseSentence: string
+  exampleAudioUrl: string
   category: string
   frequencyRank?: number | null
   wordfreqZipf?: number | null
@@ -50,6 +53,9 @@ export interface WordDetail {
   phonetic: string
   meaningCn: string
   exampleSentence: string
+  correctedExampleSentence: string
+  chineseSentence: string
+  exampleAudioUrl: string
   category: string
   bncRank?: number | null
   frqRank?: number | null
@@ -78,6 +84,8 @@ export interface PublicWordbook {
   wrongCount: number
   dailyTargetCount: number
   todayCompletedCount: number
+  todayCorrectAttempts: number
+  todayTotalAttempts: number
   nextSortOrder: number
   createdAt: string
   updatedAt: string
@@ -90,6 +98,9 @@ export interface PublicWordbookEntry {
   phonetic: string
   meaningCn: string
   exampleSentence: string
+  correctedExampleSentence: string
+  chineseSentence: string
+  exampleAudioUrl: string
   bncRank: number | null
   frqRank: number | null
   wordfreqZipf: number | null
@@ -97,6 +108,45 @@ export interface PublicWordbookEntry {
 
 export interface UpdatePublicWordbookDailyTargetRequest {
   dailyTargetCount: number
+}
+
+export type EnglishChatRole = 'user' | 'assistant'
+
+export interface EnglishChatMessage {
+  role: EnglishChatRole
+  content: string
+}
+
+export interface EnglishQuestionContext {
+  word: string
+  meaningCn: string
+  exampleSentence: string
+  correctedExampleSentence: string
+}
+
+export interface EnglishChatRequest {
+  messages: EnglishChatMessage[]
+  questionContext: EnglishQuestionContext | null
+  userPrompt: string
+}
+
+export interface EnglishChatStreamEvent {
+  type: 'token' | 'done' | 'error'
+  text?: string
+  message?: string
+  reason?: string
+}
+
+interface StreamEnglishChatOptions extends ApiAuthOptions {
+  signal?: AbortSignal
+  onEvent: (event: EnglishChatStreamEvent) => void
+}
+
+function normalizeLookupWord(value: string) {
+  return value
+    .trim()
+    .replace(/^[^A-Za-z]+|[^A-Za-z]+$/g, '')
+    .toLowerCase()
 }
 
 function normalizeWordSearchResponse(
@@ -116,6 +166,60 @@ function normalizeWordSearchResponse(
 
 function withAuth(options?: ApiAuthOptions) {
   return { requireAuth: true, token: options?.token, onUnauthorized: options?.onUnauthorized }
+}
+
+function parseStreamPayload(text: string) {
+  if (!text) {
+    return {}
+  }
+  try {
+    return JSON.parse(text) as Record<string, string>
+  } catch {
+    return { message: text }
+  }
+}
+
+function flushSseBuffer(
+  buffer: string,
+  onEvent: (event: EnglishChatStreamEvent) => void,
+) {
+  let remaining = buffer
+  while (true) {
+    const delimiterIndex = remaining.indexOf('\n\n')
+    if (delimiterIndex < 0) {
+      return remaining
+    }
+
+    const block = remaining.slice(0, delimiterIndex)
+    remaining = remaining.slice(delimiterIndex + 2)
+    if (!block.trim()) {
+      continue
+    }
+
+    let eventType: EnglishChatStreamEvent['type'] = 'token'
+    const dataLines: string[] = []
+    for (const line of block.split('\n')) {
+      if (line.startsWith('event:')) {
+        const maybeType = line.slice(6).trim()
+        if (maybeType === 'token' || maybeType === 'done' || maybeType === 'error') {
+          eventType = maybeType
+        }
+        continue
+      }
+      if (line.startsWith('data:')) {
+        dataLines.push(line.slice(5).trim())
+      }
+    }
+
+    const payload = parseStreamPayload(dataLines.join('\n'))
+    if (eventType === 'token') {
+      onEvent({ type: 'token', text: payload.text === 'null' ? '' : (payload.text || '') })
+    } else if (eventType === 'error') {
+      onEvent({ type: 'error', message: payload.message || 'AI 助手暂时不可用，请稍后再试' })
+    } else {
+      onEvent({ type: 'done', reason: payload.reason || 'completed' })
+    }
+  }
 }
 
 async function searchWords(query: string, options?: ApiAuthOptions, wordbookId?: number | null) {
@@ -153,6 +257,34 @@ async function getWordDetail(entryId: number, options?: ApiAuthOptions) {
 async function getWordDetailByType(entryId: number, entryType: SearchEntryType, options?: ApiAuthOptions) {
   const params = new URLSearchParams({ entryType })
   return apiFetch<WordDetail>(`/search/words/${entryId}?${params.toString()}`, undefined, withAuth(options))
+}
+
+async function findWordDetailByWord(
+  word: string,
+  options?: ApiAuthOptions,
+  preferredEntryType?: SearchEntryType,
+) {
+  const normalizedWord = normalizeLookupWord(word)
+  if (!normalizedWord) {
+    return null
+  }
+
+  const result = await searchWords(normalizedWord, options)
+  const exactHits = result.hits.filter((hit) => normalizeLookupWord(hit.word) === normalizedWord)
+  if (exactHits.length === 0) {
+    return null
+  }
+
+  const orderedHits = preferredEntryType
+    ? exactHits.slice().sort((left, right) => {
+        if (left.entryType === preferredEntryType && right.entryType !== preferredEntryType) return -1
+        if (left.entryType !== preferredEntryType && right.entryType === preferredEntryType) return 1
+        return 0
+      })
+    : exactHits
+
+  const target = orderedHits[0]
+  return getWordDetailByType(target.entryId, target.entryType, options)
 }
 
 async function listPublicWordbooks(options?: ApiAuthOptions) {
@@ -206,15 +338,61 @@ async function updatePublicWordbookDailyTarget(
   )
 }
 
+async function streamEnglishChat(payload: EnglishChatRequest, options: StreamEnglishChatOptions) {
+  const headers = new Headers()
+  headers.set('Content-Type', 'application/json')
+  headers.set('Accept', 'text/event-stream')
+  if (options.token) {
+    headers.set('Authorization', `Bearer ${options.token}`)
+  }
+
+  const response = await fetch('/search/ai/english-chat', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+    signal: options.signal,
+  })
+
+  if (response.status === 401) {
+    options.onUnauthorized?.()
+  }
+
+  if (!response.ok) {
+    const responseText = await response.text()
+    const parsed = parseStreamPayload(responseText)
+    throw new Error(parsed.message || response.statusText || 'AI 助手暂时不可用，请稍后再试')
+  }
+
+  if (!response.body) {
+    throw new Error('AI 助手没有返回可读取的数据流')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) {
+      buffer = flushSseBuffer(buffer, options.onEvent)
+      break
+    }
+    buffer += decoder.decode(value, { stream: true })
+    buffer = flushSseBuffer(buffer, options.onEvent)
+  }
+}
+
 export const searchApi = {
   searchWords,
   searchSuggestions,
   getWordDetail,
   getWordDetailByType,
+  findWordDetailByWord,
   listPublicWordbooks,
   listPublicWordbookEntries,
   subscribePublicWordbook,
   unsubscribePublicWordbook,
   resetPublicWordbookProgress,
   updatePublicWordbookDailyTarget,
+  streamEnglishChat,
 }

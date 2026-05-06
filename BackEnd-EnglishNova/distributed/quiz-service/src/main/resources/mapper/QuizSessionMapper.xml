@@ -50,6 +50,13 @@
         WHERE id = #{sessionId}
     </update>
 
+    <select id="loadUserQuizOptionStrategy" resultType="string">
+        SELECT quiz_option_strategy
+        FROM users
+        WHERE id = #{userId}
+        LIMIT 1
+    </select>
+
     <select id="loadTodayAnswerStats" resultType="com.nightfall.englishnova.quiz.domain.vo.TodayAnswerStatsVo">
         SELECT
             COALESCE(SUM(CASE

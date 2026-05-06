@@ -19,6 +19,8 @@
             phonetic,
             meaning_cn,
             example_sentence,
+            corrected_english,
+            chinese_sentence,
             category,
             NULL AS bnc_rank,
             NULL AS frq_rank,
@@ -57,6 +59,9 @@
             phonetic = #{phonetic},
             meaning_cn = #{meaningCn},
             example_sentence = #{exampleSentence},
+            corrected_english = '',
+            chinese_sentence = '',
+            example_audio_url = '',
             bnc_rank = #{bncRank},
             frq_rank = #{frqRank},
             wordfreq_zipf = #{wordfreqZipf},
@@ -64,6 +69,27 @@
             data_quality = #{dataQuality},
             audio_url = #{audioUrl},
             import_source = #{importSource}
+        WHERE id = #{entryId}
+    </update>
+
+    <update id="updatePublicExampleEnrichment">
+        UPDATE public_vocabulary_entries
+        SET corrected_english = #{correctedEnglish},
+            chinese_sentence = #{chineseSentence},
+            example_audio_url = #{exampleAudioUrl}
+        WHERE id = #{entryId}
+    </update>
+
+    <update id="updatePublicExampleAudioUrl">
+        UPDATE public_vocabulary_entries
+        SET example_audio_url = #{exampleAudioUrl}
+        WHERE id = #{entryId}
+    </update>
+
+    <update id="updateUserExampleEnrichment">
+        UPDATE user_vocabulary_entries
+        SET corrected_english = #{correctedEnglish},
+            chinese_sentence = #{chineseSentence}
         WHERE id = #{entryId}
     </update>
 
@@ -78,6 +104,9 @@
             phonetic,
             meaning_cn,
             example_sentence,
+            corrected_english,
+            chinese_sentence,
+            example_audio_url,
             NULL AS category,
             bnc_rank,
             frq_rank,
@@ -100,6 +129,9 @@
             phonetic,
             meaning_cn,
             example_sentence,
+            corrected_english,
+            chinese_sentence,
+            '' AS example_audio_url,
             category,
             NULL AS bnc_rank,
             NULL AS frq_rank,
@@ -130,6 +162,9 @@
             v.phonetic,
             v.meaning_cn,
             v.example_sentence,
+            v.corrected_english,
+            v.chinese_sentence,
+            v.example_audio_url,
             NULL AS category,
             v.bnc_rank,
             v.frq_rank,
@@ -157,6 +192,9 @@
             v.phonetic,
             v.meaning_cn,
             v.example_sentence,
+            v.corrected_english,
+            v.chinese_sentence,
+            '' AS example_audio_url,
             v.category,
             NULL AS bnc_rank,
             NULL AS frq_rank,
@@ -185,6 +223,9 @@
             phonetic,
             meaning_cn,
             example_sentence,
+            corrected_english,
+            chinese_sentence,
+            example_audio_url,
             NULL AS category,
             bnc_rank,
             frq_rank,
@@ -206,6 +247,9 @@
             phonetic,
             meaning_cn,
             example_sentence,
+            corrected_english,
+            chinese_sentence,
+            '' AS example_audio_url,
             category,
             NULL AS bnc_rank,
             NULL AS frq_rank,
@@ -224,6 +268,9 @@
             phonetic,
             meaning_cn,
             example_sentence,
+            corrected_english,
+            chinese_sentence,
+            example_audio_url,
             audio_url,
             '' AS category
         FROM public_vocabulary_entries
@@ -237,6 +284,10 @@
             phonetic,
             meaning_cn,
             example_sentence,
+            corrected_english,
+            chinese_sentence,
+            '' AS example_audio_url,
+            audio_url,
             category
         FROM user_vocabulary_entries
     </select>
@@ -249,6 +300,9 @@
             phonetic,
             meaning_cn,
             example_sentence,
+            corrected_english,
+            chinese_sentence,
+            example_audio_url,
             audio_url,
             '' AS category
         FROM public_vocabulary_entries

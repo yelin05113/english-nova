@@ -22,6 +22,8 @@ public class PublicWordbookRow {
     private int wrongCount;
     private int dailyTargetCount;
     private int todayCompletedCount;
+    private int todayCorrectAttempts;
+    private int todayTotalAttempts;
     private int nextSortOrder;
     private Timestamp createdAt;
     private Timestamp updatedAt;

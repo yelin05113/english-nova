@@ -1,0 +1,43 @@
+CREATE TABLE IF NOT EXISTS `word_notebooks` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` bigint NOT NULL,
+  `name` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_word_notebooks_user_updated` (`user_id`,`updated_at` DESC),
+  CONSTRAINT `fk_word_notebooks_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `word_notebook_entries` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `word_notebook_id` bigint NOT NULL,
+  `normalized_word` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `word` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `phonetic` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `example_sentence` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `corrected_example_sentence` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `chinese_sentence` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `example_audio_url` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_a` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_a_word` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_a_meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_b` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_b_word` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_b_meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_c` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_c_word` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_c_meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_d` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_d_word` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_d_meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `correct_option` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `source_entry_type` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `source_entry_id` bigint DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_word_notebook_entries_word` (`word_notebook_id`,`normalized_word`),
+  KEY `idx_word_notebook_entries_notebook_created` (`word_notebook_id`,`created_at` DESC),
+  CONSTRAINT `fk_word_notebook_entries_notebook` FOREIGN KEY (`word_notebook_id`) REFERENCES `word_notebooks` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

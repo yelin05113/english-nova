@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 public class AttemptVo {
     private long id;
     private Long userVocabularyEntryId;
+    private Long wordNotebookEntryId;
     private Long publicEntryId;
     private String correctOption;
     private String selectedOption;

@@ -1,17 +1,27 @@
 import type { WordDetail } from '../api/modules/search'
-import { formatMultilineText } from '../utils/text'
+import { formatMeaningText, formatMultilineText } from '../utils/text'
 
 interface WordDetailModalProps {
   detail: WordDetail
   loading: boolean
   onClose: () => void
   onReplayAudio: () => void
+  onReplayExampleAudio: () => void
 }
 
-export function WordDetailModal({ detail, loading, onClose, onReplayAudio }: WordDetailModalProps) {
-  const meaningText = formatMultilineText(detail.meaningCn)
-  const exampleText = formatMultilineText(detail.exampleSentence)
-  const wordbookText = formatMultilineText(detail.wordbookName)
+export function WordDetailModal({
+  detail,
+  loading,
+  onClose,
+  onReplayAudio,
+  onReplayExampleAudio,
+}: WordDetailModalProps) {
+  const meaningText = formatMeaningText(detail.meaningCn)
+  const correctedExampleText = formatMultilineText(detail.correctedExampleSentence)
+  const chineseSentenceText = formatMultilineText(detail.chineseSentence)
+  const hasCorrectedExample = Boolean(correctedExampleText)
+  const hasChineseSentence = Boolean(chineseSentenceText)
+  const canReplayExample = Boolean(detail.correctedExampleSentence)
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
@@ -20,6 +30,15 @@ export function WordDetailModal({ detail, loading, onClose, onReplayAudio }: Wor
           <div className="detail-title-block">
             <div className="detail-title-row">
               <h3>{detail.word}</h3>
+              <button
+                type="button"
+                className="ghost detail-audio-button"
+                onClick={onReplayAudio}
+                disabled={loading}
+                aria-label={`播放 ${detail.word} 发音`}
+              >
+                读音
+              </button>
               <strong className="phonetic-text detail-phonetic">/{detail.phonetic || '-'}/</strong>
             </div>
           </div>
@@ -34,20 +53,26 @@ export function WordDetailModal({ detail, loading, onClose, onReplayAudio }: Wor
         </div>
 
         <div className="list">
-          <div className="card">
-            <strong>例句</strong>
-            <span className="multiline-text">{exampleText}</span>
+          <div className="card detail-section-card">
+            <div className="detail-section-head">
+              <strong>英文例句</strong>
+              {canReplayExample ? (
+                <button
+                  type="button"
+                  className="ghost detail-audio-button"
+                  onClick={onReplayExampleAudio}
+                  aria-label={`播放 ${detail.word} 的例句读音`}
+                >
+                  读音
+                </button>
+              ) : null}
+            </div>
+            <span className="multiline-text">{hasCorrectedExample ? correctedExampleText : '暂无英文例句'}</span>
           </div>
-          <div className="card">
-            <strong>词书</strong>
-            <span className="multiline-text">{wordbookText}</span>
+          <div className="card detail-section-card">
+            <strong>中文释义</strong>
+            <span className="multiline-text">{hasChineseSentence ? chineseSentenceText : '暂无中文释义'}</span>
           </div>
-        </div>
-
-        <div className="detail-actions">
-          <button type="button" className="primary detail-action-button" onClick={onReplayAudio} disabled={loading}>
-            {loading ? '加载中...' : '播放发音'}
-          </button>
         </div>
       </section>
     </div>

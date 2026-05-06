@@ -17,6 +17,9 @@ public class SearchDocumentVo {
     private String phonetic;
     private String meaningCn;
     private String exampleSentence;
+    private String correctedEnglish;
+    private String chineseSentence;
+    private String exampleAudioUrl;
     private String category;
     private Integer bncRank;
     private Integer frqRank;

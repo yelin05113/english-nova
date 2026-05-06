@@ -35,7 +35,7 @@ spring:
             - id: quiz-service-wordbooks
               uri: lb://quiz-service
               predicates:
-                - Path=/api/wordbooks/**,/wordbooks/**
+                - Path=/api/wordbooks/**,/wordbooks/**,/api/word-notebooks/**,/word-notebooks/**
             - id: quiz-service
               uri: lb://quiz-service
               predicates:

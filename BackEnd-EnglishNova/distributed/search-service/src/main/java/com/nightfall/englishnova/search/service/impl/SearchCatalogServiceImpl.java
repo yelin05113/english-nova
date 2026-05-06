@@ -2,19 +2,25 @@ package com.nightfall.englishnova.search.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nightfall.englishnova.search.config.ExampleEnrichmentProperties;
+import com.nightfall.englishnova.search.config.PublicCatalogSourceProperties;
 import com.nightfall.englishnova.search.domain.po.PublicEntryPo;
 import com.nightfall.englishnova.search.domain.po.PublicCatalogImportJobPo;
 import com.nightfall.englishnova.search.domain.vo.DetailVo;
+import com.nightfall.englishnova.search.domain.vo.ExampleEnrichmentTaskVo;
 import com.nightfall.englishnova.search.domain.vo.PublicCatalogImportItemVo;
 import com.nightfall.englishnova.search.domain.vo.PublicCatalogImportJobVo;
 import com.nightfall.englishnova.search.domain.vo.PublicWordbookRow;
 import com.nightfall.englishnova.search.domain.vo.SearchDocumentVo;
 import com.nightfall.englishnova.search.domain.vo.VocabularyCleanupVo;
 import com.nightfall.englishnova.search.domain.vo.WordbookCleanupVo;
+import com.nightfall.englishnova.search.mapper.ExampleEnrichmentTaskMapper;
 import com.nightfall.englishnova.search.mapper.PublicCatalogImportJobMapper;
 import com.nightfall.englishnova.search.mapper.SearchVocabularyMapper;
 import com.nightfall.englishnova.search.mapper.SearchWordbookMapper;
 import com.nightfall.englishnova.search.service.AudioProxyPayload;
+import com.nightfall.englishnova.search.service.ExampleAudioStorageService;
+import com.nightfall.englishnova.search.service.OpenAiExampleEnrichmentClient;
 import com.nightfall.englishnova.search.service.SearchCatalogService;
 import com.nightfall.englishnova.search.utools.SearchTextUtools;
 import com.nightfall.englishnova.shared.auth.CurrentUser;
@@ -57,7 +63,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -68,7 +77,14 @@ import java.util.Map;
 import java.util.Set;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 
 /**
  * 鍩轰簬 Elasticsearch 鐨勬悳绱㈢洰褰曟湇鍔°€? * 璐熻矗鍏叡璇嶅簱涓庣鏈夎瘝搴撴悳绱€佽瘝鏉¤鎯呮煡璇紝浠ュ強鍏叡璇嶅簱琛ュ叏瀵煎叆銆? */
@@ -90,11 +106,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     private static final String HIGH_FREQUENCY_SOURCE_NAME = "ecdict-high-frequency-10000";
     private static final String HIGH_FREQUENCY_5000_SOURCE_NAME = "ecdict-high-frequency-5000";
     private static final String LEGACY_HIGH_FREQUENCY_5000_SOURCE_NAME = "high-frequency-5000";
-    private static final Map<String, String> HIGH_FREQUENCY_RESOURCE_BY_SOURCE = Map.of(
-            HIGH_FREQUENCY_SOURCE_NAME, ECDICT_HIGH_FREQUENCY_RESOURCE,
-            HIGH_FREQUENCY_5000_SOURCE_NAME, ECDICT_HIGH_FREQUENCY_5000_RESOURCE,
-            LEGACY_HIGH_FREQUENCY_5000_SOURCE_NAME, ECDICT_HIGH_FREQUENCY_5000_RESOURCE
-    );
+    private static final String EXTERNAL_CATALOG_MANIFEST_FILE = "manifest.json";
     private static final String JOB_STATUS_PENDING = "PENDING";
     private static final String JOB_STATUS_RUNNING = "RUNNING";
     private static final String JOB_STATUS_CANCELLED = "CANCELLED";
@@ -106,6 +118,9 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     private static final int DEFAULT_HIGH_FREQUENCY_BATCH_SIZE = 150;
     private static final int DEFAULT_BATCH_SIZE = 100;
     private static final int DEFAULT_PUBLIC_AUDIO_BACKFILL_BATCH_SIZE = 500;
+    private static final int DEFAULT_ENRICHMENT_BACKFILL_BATCH_SIZE = 200;
+    private static final int ENRICHMENT_RUNNING_TIMEOUT_MINUTES = 30;
+    private static final String EXAMPLE_AUDIO_CONTENT_TYPE = "audio/mpeg";
     private static final int SEARCH_RESULT_SIZE = 18;
     private static final int SEARCH_RESULT_FETCH_SIZE = 60;
     private static final int SUGGESTION_FETCH_SIZE = 40;
@@ -113,6 +128,11 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     private static final String FREE_DICTIONARY_API_BASE_URL = "https://freedictionaryapi.com/api/v1";
     private static final String AUDIO_API_BASE_URL = "https://api.dictionaryapi.dev/api/v2/entries/en";
     private static final String AUDIO_FALLBACK_BASE_URL = "https://dict.youdao.com/dictvoice?type=2&audio=";
+    private static final Pattern PART_OF_SPEECH_PREFIX_PATTERN = Pattern.compile(
+            "^(?:n|v|vt|vi|adj|adv|prep|pron|conj|art|aux|num|int|det|abbr|phr|pref|suf|modal)\\.(?:\\s|$)",
+            Pattern.CASE_INSENSITIVE
+    );
+    private static final Pattern ENGLISH_TOKEN_PATTERN = Pattern.compile("[A-Za-z]+(?:['-][A-Za-z]+)?");
     private static final Set<String> AUDIO_PROXY_ALLOWED_HOSTS = Set.of(
             "api.dictionaryapi.dev",
             "dict.youdao.com",
@@ -121,29 +141,49 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
 
     private final SearchVocabularyMapper searchVocabularyMapper;
     private final SearchWordbookMapper searchWordbookMapper;
+    private final ExampleEnrichmentTaskMapper exampleEnrichmentTaskMapper;
     private final PublicCatalogImportJobMapper publicCatalogImportJobMapper;
+    private final ExampleEnrichmentProperties exampleEnrichmentProperties;
+    private final PublicCatalogSourceProperties publicCatalogSourceProperties;
+    private final OpenAiExampleEnrichmentClient openAiExampleEnrichmentClient;
+    private final ExampleAudioStorageService exampleAudioStorageService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final String elasticsearchBaseUrl;
+    private final int publicCatalogImportConcurrency;
     private final AtomicBoolean importWorkerRunning = new AtomicBoolean(false);
     private final AtomicBoolean publicAudioBackfillRunning = new AtomicBoolean(false);
-    private volatile Map<String, EcdictCatalogEntry> ecdictCatalogCache;
+    private final AtomicBoolean exampleEnrichmentWorkerRunning = new AtomicBoolean(false);
+    private final AtomicBoolean exampleEnrichmentBackfillRunning = new AtomicBoolean(false);
+    private volatile CatalogRegistry catalogRegistryCache;
 
     public SearchCatalogServiceImpl(
             SearchVocabularyMapper searchVocabularyMapper,
             SearchWordbookMapper searchWordbookMapper,
+            ExampleEnrichmentTaskMapper exampleEnrichmentTaskMapper,
             PublicCatalogImportJobMapper publicCatalogImportJobMapper,
+            ExampleEnrichmentProperties exampleEnrichmentProperties,
+            PublicCatalogSourceProperties publicCatalogSourceProperties,
+            OpenAiExampleEnrichmentClient openAiExampleEnrichmentClient,
+            ExampleAudioStorageService exampleAudioStorageService,
             ObjectMapper objectMapper,
-            @Value("${spring.elasticsearch.uris}") String elasticsearchBaseUrl
+            @Value("${spring.elasticsearch.uris}") String elasticsearchBaseUrl,
+            @Value("${english-nova.search.public-catalog-import-concurrency:4}") int publicCatalogImportConcurrency
     ) {
         this.searchVocabularyMapper = searchVocabularyMapper;
         this.searchWordbookMapper = searchWordbookMapper;
+        this.exampleEnrichmentTaskMapper = exampleEnrichmentTaskMapper;
         this.publicCatalogImportJobMapper = publicCatalogImportJobMapper;
+        this.exampleEnrichmentProperties = exampleEnrichmentProperties;
+        this.publicCatalogSourceProperties = publicCatalogSourceProperties;
+        this.openAiExampleEnrichmentClient = openAiExampleEnrichmentClient;
+        this.exampleAudioStorageService = exampleAudioStorageService;
         this.objectMapper = objectMapper;
         this.elasticsearchBaseUrl = elasticsearchBaseUrl.endsWith("/")
                 ? elasticsearchBaseUrl.substring(0, elasticsearchBaseUrl.length() - 1)
                 : elasticsearchBaseUrl;
         this.httpClient = HttpClient.newHttpClient();
+        this.publicCatalogImportConcurrency = Math.max(1, publicCatalogImportConcurrency);
     }
 
     /**
@@ -196,6 +236,12 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         }
         String clientAudioUrl = toClientAudioUrl(audioUrl);
 
+        String displayExampleSentence = resolveDisplayExampleSentence(
+                row.getEntryType(),
+                row.getExampleSentence(),
+                row.getCorrectedEnglish()
+        );
+
         return new WordDetailDto(
                 row.getEntryId(),
                 row.getEntryType(),
@@ -205,7 +251,10 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 normalizedWord,
                 SearchTextUtools.normalizePhonetic(row.getPhonetic()),
                 UserFacingTextNormalizer.normalizeMeaningText(row.getMeaningCn()),
-                UserFacingTextNormalizer.normalizeDisplayText(row.getExampleSentence()),
+                displayExampleSentence,
+                UserFacingTextNormalizer.normalizeDisplayText(row.getCorrectedEnglish()),
+                UserFacingTextNormalizer.normalizeDisplayText(row.getChineseSentence()),
+                normalizeExampleAudioUrl(entryType.name(), row.getExampleAudioUrl()),
                 UserFacingTextNormalizer.normalizeMeaningText(row.getCategory()),
                 row.getBncRank(),
                 row.getFrqRank(),
@@ -256,8 +305,29 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         }
     }
 
+    @Override
+    public AudioProxyPayload getExampleAudio(long entryId) {
+        SearchDocumentVo row = searchVocabularyMapper.findPublicDocumentById(entryId);
+        if (row == null) {
+            throw new NotFoundException("Generated example audio not found");
+        }
+        String correctedEnglish = UserFacingTextNormalizer.normalizeDisplayText(row.getCorrectedEnglish());
+        if (!hasCleanText(row.getExampleAudioUrl()) || !hasCleanText(correctedEnglish)) {
+            throw new NotFoundException("Generated example audio not found");
+        }
+        if (!exampleAudioStorageService.hasPublicExampleAudio(entryId, correctedEnglish)) {
+            exampleEnrichmentTaskMapper.upsertTask(PUBLIC_ENTRY_TYPE, entryId);
+            throw new NotFoundException("Generated example audio not found");
+        }
+        return new AudioProxyPayload(
+                exampleAudioStorageService.loadPublicExampleAudio(entryId, correctedEnglish),
+                EXAMPLE_AUDIO_CONTENT_TYPE
+        );
+    }
+
     public List<PublicWordbookDto> listPublicWordbooks(CurrentUser user) {
-        return searchWordbookMapper.listPublicWordbooks(user.id()).stream()
+        long userId = user == null ? -1L : user.id();
+        return searchWordbookMapper.listPublicWordbooks(userId).stream()
                 .map(row -> new PublicWordbookDto(
                         row.getId(),
                         UserFacingTextNormalizer.normalizeDisplayText(row.getName()),
@@ -272,6 +342,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                         row.getWrongCount(),
                         row.getDailyTargetCount(),
                         row.getTodayCompletedCount(),
+                        row.getTodayCorrectAttempts(),
+                        row.getTodayTotalAttempts(),
                         row.getNextSortOrder(),
                         row.getCreatedAt().toInstant().atOffset(ZoneOffset.UTC),
                         row.getUpdatedAt().toInstant().atOffset(ZoneOffset.UTC)
@@ -282,17 +354,23 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     public List<PublicWordbookEntryDto> listPublicWordbookEntries(long publicWordbookId) {
         requirePublicWordbook(publicWordbookId);
         return searchWordbookMapper.listPublicWordbookEntries(publicWordbookId).stream()
-                .map(row -> new PublicWordbookEntryDto(
-                        row.getPublicEntryId(),
-                        row.getSortOrder(),
-                        TextRepairUtils.repair(row.getWord()),
-                        SearchTextUtools.normalizePhonetic(row.getPhonetic()),
-                        UserFacingTextNormalizer.normalizeMeaningText(row.getMeaningCn()),
-                        UserFacingTextNormalizer.normalizeDisplayText(row.getExampleSentence()),
-                        row.getBncRank(),
-                        row.getFrqRank(),
-                        row.getWordfreqZipf()
-                ))
+                .map(row -> {
+                    String correctedExampleSentence = UserFacingTextNormalizer.normalizeDisplayText(row.getCorrectedEnglish());
+                    return new PublicWordbookEntryDto(
+                            row.getPublicEntryId(),
+                            row.getSortOrder(),
+                            TextRepairUtils.repair(row.getWord()),
+                            SearchTextUtools.normalizePhonetic(row.getPhonetic()),
+                            UserFacingTextNormalizer.normalizeMeaningText(row.getMeaningCn()),
+                            resolveDisplayExampleSentence(PUBLIC_ENTRY_TYPE, row.getExampleSentence(), row.getCorrectedEnglish()),
+                            correctedExampleSentence,
+                            UserFacingTextNormalizer.normalizeDisplayText(row.getChineseSentence()),
+                            normalizeExampleAudioUrl(PUBLIC_ENTRY_TYPE, row.getExampleAudioUrl()),
+                            row.getBncRank(),
+                            row.getFrqRank(),
+                            row.getWordfreqZipf()
+                    );
+                })
                 .toList();
     }
 
@@ -380,6 +458,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 row.getWrongCount(),
                 row.getDailyTargetCount(),
                 row.getTodayCompletedCount(),
+                row.getTodayCorrectAttempts(),
+                row.getTodayTotalAttempts(),
                 row.getNextSortOrder(),
                 row.getCreatedAt().toInstant().atOffset(ZoneOffset.UTC),
                 row.getUpdatedAt().toInstant().atOffset(ZoneOffset.UTC)
@@ -457,11 +537,16 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             return;
         }
         try {
-            PublicCatalogImportJobVo job = publicCatalogImportJobMapper.findNextRunnableJob();
-            if (job == null) {
-                return;
+            while (true) {
+                PublicCatalogImportJobVo job = publicCatalogImportJobMapper.findNextRunnableJob();
+                if (job == null) {
+                    return;
+                }
+                boolean processedBatch = processPublicCatalogImportJob(job);
+                if (!processedBatch) {
+                    return;
+                }
             }
-            processPublicCatalogImportJob(job);
         } finally {
             importWorkerRunning.set(false);
         }
@@ -497,11 +582,136 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         }
     }
 
-    private void processPublicCatalogImportJob(PublicCatalogImportJobVo job) {
+    @Scheduled(fixedDelayString = "${english-nova.enrichment.worker-delay-ms:5000}")
+    public void processExampleEnrichmentTasks() {
+        if (!exampleEnrichmentWorkerRunning.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            if (!openAiExampleEnrichmentClient.isTextConfigured()) {
+                return;
+            }
+
+            int batchSize = exampleEnrichmentProperties.resolvedBatchSize();
+            int workerConcurrency = exampleEnrichmentProperties.resolvedWorkerConcurrency();
+            int claimLimit = Math.max(batchSize, batchSize * workerConcurrency);
+            int maxRetries = exampleEnrichmentProperties.resolvedMaxRetries();
+            exampleEnrichmentTaskMapper.resetTimedOutRunningTasks(ENRICHMENT_RUNNING_TIMEOUT_MINUTES);
+            List<ExampleEnrichmentTaskVo> candidates = exampleEnrichmentTaskMapper.findPendingTasks(
+                    claimLimit,
+                    maxRetries
+            );
+            if (candidates.isEmpty()) {
+                return;
+            }
+
+            List<ClaimedEnrichmentTask> claimedTasks = new ArrayList<>();
+            List<PublicTaskContext> publicTextTasks = new ArrayList<>();
+            List<PublicTaskContext> publicAudioOnlyTasks = new ArrayList<>();
+            List<UserTaskContext> userTextTasks = new ArrayList<>();
+            for (ExampleEnrichmentTaskVo task : candidates) {
+                if (exampleEnrichmentTaskMapper.markTaskRunning(task.getId(), maxRetries) == 0) {
+                    continue;
+                }
+
+                SearchDocumentVo entry = loadSearchDocument(task.getEntryType(), task.getEntryId());
+                if (entry == null) {
+                    exampleEnrichmentTaskMapper.markTaskSkipped(task.getId(), "ENTRY_NOT_FOUND");
+                    continue;
+                }
+                ClaimedEnrichmentTask claimedTask = new ClaimedEnrichmentTask(task.getId(), task.getEntryType(), task.getEntryId());
+                claimedTasks.add(claimedTask);
+                if (PUBLIC_ENTRY_TYPE.equalsIgnoreCase(task.getEntryType())) {
+                    PublicTaskContext context = new PublicTaskContext(claimedTask, entry);
+                    if (needsPublicExampleText(entry)) {
+                        publicTextTasks.add(context);
+                    } else if (needsPublicExampleAudio(entry)) {
+                        publicAudioOnlyTasks.add(context);
+                    } else {
+                        exampleEnrichmentTaskMapper.markTaskSucceeded(task.getId());
+                    }
+                    continue;
+                }
+
+                String originalEnglish = UserFacingTextNormalizer.normalizeDisplayText(entry.getExampleSentence());
+                if (!shouldEnrichExampleSentence(originalEnglish)) {
+                    exampleEnrichmentTaskMapper.markTaskSkipped(task.getId(), "SKIPPED_NON_ENGLISH_EXAMPLE");
+                    continue;
+                }
+                userTextTasks.add(new UserTaskContext(claimedTask, entry, originalEnglish));
+            }
+
+            Map<String, PublicEnrichmentOutcome> publicOutcomeByKey = processPublicTextTasks(
+                    publicTextTasks,
+                    batchSize,
+                    workerConcurrency
+            );
+            Map<String, UserEnrichmentOutcome> userOutcomeByKey = processUserTextTasks(
+                    userTextTasks,
+                    batchSize,
+                    workerConcurrency
+            );
+
+            boolean elasticsearchAvailable = tryEnsureIndex();
+            boolean indexChanged = false;
+
+            indexChanged = processPublicTaskCompletions(
+                    publicTextTasks,
+                    publicAudioOnlyTasks,
+                    publicOutcomeByKey,
+                    elasticsearchAvailable
+            ) || indexChanged;
+
+            for (UserTaskContext context : userTextTasks) {
+                String taskKey = entryTaskKey(context.task().entryType(), context.task().entryId());
+                UserEnrichmentOutcome outcome = userOutcomeByKey.get(taskKey);
+                if (outcome == null) {
+                    exampleEnrichmentTaskMapper.markTaskFailed(context.task().taskId(), "OPENAI_RESULT_MISSING");
+                    continue;
+                }
+                if (!outcome.success()) {
+                    exampleEnrichmentTaskMapper.markTaskFailed(context.task().taskId(), outcome.errorMessage());
+                    continue;
+                }
+                updateExampleEnrichment(context.task().entryType(), context.task().entryId(), outcome.correctedEnglish(), outcome.chineseSentence(), "");
+                exampleEnrichmentTaskMapper.markTaskSucceeded(context.task().taskId());
+                syncEntryToIndex(context.task().entryType(), context.task().entryId(), elasticsearchAvailable);
+                indexChanged = indexChanged || elasticsearchAvailable;
+            }
+
+            if (indexChanged) {
+                safeRefreshIndex();
+            }
+        } finally {
+            exampleEnrichmentWorkerRunning.set(false);
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${english-nova.enrichment.backfill-delay-ms:30000}")
+    public void backfillExampleEnrichmentTasks() {
+        if (!exampleEnrichmentBackfillRunning.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            int inserted = 0;
+            int publicLimit = exampleEnrichmentProperties.resolvedPublicLimit();
+            inserted += exampleEnrichmentTaskMapper.skipOutOfScopePublicTasks(publicLimit);
+            inserted += exampleEnrichmentTaskMapper.resetPublicIncompleteTasks(DEFAULT_ENRICHMENT_BACKFILL_BATCH_SIZE, publicLimit);
+            inserted += exampleEnrichmentTaskMapper.backfillPublicTasks(DEFAULT_ENRICHMENT_BACKFILL_BATCH_SIZE, publicLimit);
+            inserted += exampleEnrichmentTaskMapper.backfillUserTasks(DEFAULT_ENRICHMENT_BACKFILL_BATCH_SIZE);
+            if (inserted > 0) {
+                log.info("Backfilled {} example enrichment tasks", inserted);
+            }
+        } finally {
+            exampleEnrichmentBackfillRunning.set(false);
+        }
+    }
+
+    private boolean processPublicCatalogImportJob(PublicCatalogImportJobVo job) {
         publicCatalogImportJobMapper.startJob(job.getId());
         PublicCatalogImportJobVo currentJob = publicCatalogImportJobMapper.findJob(job.getId());
         if (currentJob == null) {
-            return;
+            return false;
         }
         publicCatalogImportJobMapper.resetRunningItems(currentJob.getId());
 
@@ -512,39 +722,47 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         if (items.isEmpty()) {
             publicCatalogImportJobMapper.refreshJobCounters(currentJob.getId());
             publicCatalogImportJobMapper.completeJobIfFinished(currentJob.getId());
-            return;
+            return false;
         }
 
         boolean elasticsearchAvailable = tryEnsureIndex();
         boolean databaseChanged = false;
         boolean indexChanged = false;
+        ExecutorService executor = Executors.newFixedThreadPool(Math.min(publicCatalogImportConcurrency, items.size()));
         try {
+            List<Future<ImportTaskResult>> futures = new ArrayList<>(items.size());
             for (PublicCatalogImportItemVo item : items) {
-                if (publicCatalogImportJobMapper.markItemRunning(item.getId()) == 0) {
+                futures.add(executor.submit(() -> processPublicCatalogImportItem(item, currentJob, elasticsearchAvailable)));
+            }
+
+            for (Future<ImportTaskResult> future : futures) {
+                ImportTaskResult result = future.get();
+                if (!result.claimed()) {
                     continue;
                 }
-                try {
-                    ImportOutcome outcome = importSingleWord(
-                            item.getWord(),
-                            currentJob.isRefreshExisting(),
-                            elasticsearchAvailable
-                    );
-                    switch (outcome.action()) {
-                        case IMPORTED -> {
-                            publicCatalogImportJobMapper.markItemImported(item.getId(), outcome.entryId(), ITEM_STATUS_IMPORTED);
-                            databaseChanged = true;
-                            indexChanged = true;
-                        }
-                        case UPDATED -> {
-                            publicCatalogImportJobMapper.markItemImported(item.getId(), outcome.entryId(), ITEM_STATUS_UPDATED);
-                            databaseChanged = true;
-                            indexChanged = true;
-                        }
-                        case SKIPPED -> publicCatalogImportJobMapper.markItemSkipped(item.getId(), outcome.entryId());
-                        case FAILED -> publicCatalogImportJobMapper.markItemFailed(item.getId(), outcome.errorMessage());
+                switch (result.outcome().action()) {
+                    case IMPORTED -> {
+                        publicCatalogImportJobMapper.markItemImported(
+                                result.itemId(),
+                                result.outcome().entryId(),
+                                ITEM_STATUS_IMPORTED,
+                                result.outcome().hasExample()
+                        );
+                        databaseChanged = true;
+                        indexChanged = true;
                     }
-                } catch (Exception exception) {
-                    publicCatalogImportJobMapper.markItemFailed(item.getId(), normalizeErrorMessage(exception));
+                    case UPDATED -> {
+                        publicCatalogImportJobMapper.markItemImported(
+                                result.itemId(),
+                                result.outcome().entryId(),
+                                ITEM_STATUS_UPDATED,
+                                result.outcome().hasExample()
+                        );
+                        databaseChanged = true;
+                        indexChanged = true;
+                    }
+                    case SKIPPED -> publicCatalogImportJobMapper.markItemSkipped(result.itemId(), result.outcome().entryId());
+                    case FAILED -> publicCatalogImportJobMapper.markItemFailed(result.itemId(), result.outcome().errorMessage());
                 }
             }
 
@@ -553,8 +771,37 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             }
             publicCatalogImportJobMapper.refreshJobCounters(currentJob.getId());
             publicCatalogImportJobMapper.completeJobIfFinished(currentJob.getId());
+            return databaseChanged || indexChanged || !items.isEmpty();
         } catch (Exception exception) {
             publicCatalogImportJobMapper.failJob(currentJob.getId(), normalizeErrorMessage(exception));
+            return false;
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    private ImportTaskResult processPublicCatalogImportItem(
+            PublicCatalogImportItemVo item,
+            PublicCatalogImportJobVo currentJob,
+            boolean elasticsearchAvailable
+    ) {
+        if (publicCatalogImportJobMapper.markItemRunning(item.getId()) == 0) {
+            return new ImportTaskResult(item.getId(), false, new ImportOutcome(ImportAction.SKIPPED, null, null, false));
+        }
+        try {
+            ImportOutcome outcome = importSingleWord(
+                    item.getWord(),
+                    currentJob.isRefreshExisting(),
+                    elasticsearchAvailable,
+                    currentJob.getSourceName()
+            );
+            return new ImportTaskResult(item.getId(), true, outcome);
+        } catch (Exception exception) {
+            return new ImportTaskResult(
+                    item.getId(),
+                    true,
+                    new ImportOutcome(ImportAction.FAILED, null, normalizeErrorMessage(exception), false)
+            );
         }
     }
 
@@ -620,6 +867,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
      * 鍦ㄨ瘝涔﹀鍏ュ畬鎴愬悗锛屽皢鏁版嵁鍚屾鍒?Elasticsearch銆?     */
     @RabbitListener(queues = "${english-nova.search.index-queue}")
     public void handleImportedWordbook(WordbookImportedEvent event) {
+        exampleEnrichmentTaskMapper.insertTasksForUserWordbook(event.userId(), event.wordbookId());
         if (!tryEnsureIndex()) {
             log.warn("Skipping Elasticsearch sync for imported wordbook {} because the cluster is unavailable", event.wordbookId());
             return;
@@ -634,7 +882,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("size", SEARCH_RESULT_FETCH_SIZE);
             body.put("_source", List.of(
-                    "entryId", "entryType", "word", "phonetic", "meaningCn", "exampleSentence", "category",
+                    "entryId", "entryType", "word", "phonetic", "meaningCn", "exampleSentence",
+                    "correctedEnglish", "chineseSentence", "category",
                     "bncRank", "frqRank", "wordfreqZipf", "dataQuality",
                     "visibility", "importSource", "ownerUserId", "wordbookId"
             ));
@@ -772,7 +1021,14 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                     SearchTextUtools.normalizePhonetic(source.path("phonetic").asText()),
                     UserFacingTextNormalizer.normalizeMeaningText(source.path("meaningCn").asText()),
                     buildSourceLabel(source.path("entryType").asText(PUBLIC_ENTRY_TYPE)),
-                    UserFacingTextNormalizer.normalizeDisplayText(source.path("exampleSentence").asText()),
+                    resolveDisplayExampleSentence(
+                            source.path("entryType").asText(PUBLIC_ENTRY_TYPE),
+                            source.path("exampleSentence").asText(),
+                            source.path("correctedEnglish").asText()
+                    ),
+                    UserFacingTextNormalizer.normalizeDisplayText(source.path("correctedEnglish").asText()),
+                    UserFacingTextNormalizer.normalizeDisplayText(source.path("chineseSentence").asText()),
+                    normalizeExampleAudioUrl(source.path("entryType").asText(PUBLIC_ENTRY_TYPE), source.path("exampleAudioUrl").asText()),
                     UserFacingTextNormalizer.normalizeMeaningText(source.path("category").asText()),
                     source.path("bncRank").isMissingNode() || source.path("bncRank").isNull() ? null : source.path("bncRank").asInt(),
                     source.path("frqRank").isMissingNode() || source.path("frqRank").isNull() ? null : source.path("frqRank").asInt(),
@@ -802,6 +1058,9 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                     candidate.meaningCn(),
                     candidate.source(),
                     candidate.exampleSentence(),
+                    candidate.correctedEnglish(),
+                    candidate.chineseSentence(),
+                    candidate.exampleAudioUrl(),
                     candidate.category(),
                     candidate.bncRank(),
                     candidate.frqRank(),
@@ -825,6 +1084,9 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                     hit.meaningCn(),
                     hit.source(),
                     hit.exampleSentence(),
+                    hit.correctedEnglish(),
+                    hit.chineseSentence(),
+                    hit.exampleAudioUrl(),
                     hit.category(),
                     frequencyRank(hit.bncRank(), hit.frqRank()),
                     hit.wordfreqZipf(),
@@ -844,9 +1106,20 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     private Map<String, Object> buildTextSearchQuery(String keyword) {
         return Map.of("multi_match", Map.of(
                 "query", keyword,
-                "fields", List.of("meaningCn^3", "category^2", "exampleSentence"),
+                "fields", List.of("meaningCn^3", "category^2", "exampleSentence", "correctedEnglish^2", "chineseSentence^2"),
                 "type", "best_fields"
         ));
+    }
+
+    private String resolveDisplayExampleSentence(String entryType, String exampleSentence, String correctedEnglish) {
+        String normalizedExampleSentence = UserFacingTextNormalizer.normalizeDisplayText(exampleSentence);
+        if (hasCleanText(normalizedExampleSentence)) {
+            return normalizedExampleSentence;
+        }
+        if (!PUBLIC_ENTRY_TYPE.equalsIgnoreCase(entryType)) {
+            return normalizedExampleSentence;
+        }
+        return UserFacingTextNormalizer.normalizeDisplayText(correctedEnglish);
     }
 
     private List<Object> buildWordSearchQueries(String normalizedWordKeyword) {
@@ -884,7 +1157,9 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         }
         if (containsNormalizedText(candidate.meaningCn(), keyword)
                 || containsNormalizedText(candidate.category(), keyword)
-                || containsNormalizedText(candidate.exampleSentence(), keyword)) {
+                || containsNormalizedText(candidate.exampleSentence(), keyword)
+                || containsNormalizedText(candidate.correctedEnglish(), keyword)
+                || containsNormalizedText(candidate.chineseSentence(), keyword)) {
             return MatchType.TEXT;
         }
         return null;
@@ -977,92 +1252,221 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     private String resolveHighFrequencySourceName(String sourceName) {
+        CatalogRegistry registry = loadCatalogRegistry();
         if (sourceName == null || sourceName.isBlank()) {
             return HIGH_FREQUENCY_SOURCE_NAME;
         }
         String normalized = sourceName.trim().toLowerCase(Locale.ROOT);
-        if (!HIGH_FREQUENCY_RESOURCE_BY_SOURCE.containsKey(normalized)) {
+        if (!registry.sources().containsKey(normalized)) {
             throw new IllegalArgumentException("Unsupported public catalog source: " + sourceName);
         }
         return normalized;
     }
 
     private List<String> loadHighFrequencyWords(String sourceName) {
-        String resourceName = HIGH_FREQUENCY_RESOURCE_BY_SOURCE.get(sourceName);
-        if (resourceName == null) {
-            throw new IllegalArgumentException("Unsupported public catalog source: " + sourceName);
-        }
-
-        ClassPathResource resource = new ClassPathResource(resourceName);
-        List<String> words = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            boolean firstLine = true;
-            while ((line = reader.readLine()) != null && words.size() < MAX_HIGH_FREQUENCY_WORDS) {
-                if (firstLine) {
-                    firstLine = false;
-                    if (line.startsWith("word\t")) {
-                        continue;
-                    }
-                }
-                String[] columns = line.split("\t", -1);
-                if (columns.length == 0) {
-                    continue;
-                }
-                String word = normalizeIndexedWord(columns[0]);
-                if (supportsWordMatching(word)) {
-                    words.add(word);
-                }
-            }
-        } catch (IOException exception) {
-            throw new IllegalStateException("Failed to load public catalog source: " + sourceName, exception);
-        }
-        if (words.isEmpty()) {
+        CatalogSourceData source = loadCatalogSource(sourceName);
+        if (source.words().isEmpty()) {
             throw new IllegalStateException("Public catalog source is empty: " + sourceName);
         }
-        return words;
+        return source.words();
     }
 
-    private Map<String, EcdictCatalogEntry> loadEcdictCatalog() {
-        Map<String, EcdictCatalogEntry> cached = ecdictCatalogCache;
-        if (cached != null) {
+    private CatalogSourceData loadCatalogSource(String sourceName) {
+        CatalogSourceData source = loadCatalogRegistry().sources().get(sourceName);
+        if (source == null) {
+            throw new IllegalArgumentException("Unsupported public catalog source: " + sourceName);
+        }
+        return source;
+    }
+
+    private CatalogRegistry loadCatalogRegistry() {
+        CatalogRegistry cached = catalogRegistryCache;
+        String signature = resolveCatalogRegistrySignature();
+        if (cached != null && signature.equals(cached.signature())) {
             return cached;
         }
         synchronized (this) {
-            if (ecdictCatalogCache != null) {
-                return ecdictCatalogCache;
+            if (catalogRegistryCache != null && signature.equals(catalogRegistryCache.signature())) {
+                return catalogRegistryCache;
             }
-            ecdictCatalogCache = readEcdictCatalog();
-            return ecdictCatalogCache;
+            catalogRegistryCache = readCatalogRegistry(signature);
+            return catalogRegistryCache;
         }
     }
 
-    private Map<String, EcdictCatalogEntry> readEcdictCatalog() {
-        ClassPathResource resource = new ClassPathResource(ECDICT_HIGH_FREQUENCY_RESOURCE);
-        LinkedHashMap<String, EcdictCatalogEntry> entries = new LinkedHashMap<>();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            boolean firstLine = true;
-            while ((line = reader.readLine()) != null && entries.size() < MAX_HIGH_FREQUENCY_WORDS) {
-                if (firstLine) {
-                    firstLine = false;
-                    if (line.startsWith("word\t")) {
-                        continue;
-                    }
+    private CatalogRegistry readCatalogRegistry(String signature) {
+        LinkedHashMap<String, CatalogSourceData> sources = new LinkedHashMap<>();
+        CatalogSourceData highFrequency10000 = readCatalogSourceFromClasspath(
+                HIGH_FREQUENCY_SOURCE_NAME,
+                ECDICT_HIGH_FREQUENCY_RESOURCE,
+                MAX_HIGH_FREQUENCY_WORDS
+        );
+        CatalogSourceData highFrequency5000 = readCatalogSourceFromClasspath(
+                HIGH_FREQUENCY_5000_SOURCE_NAME,
+                ECDICT_HIGH_FREQUENCY_5000_RESOURCE,
+                MAX_HIGH_FREQUENCY_WORDS
+        );
+        sources.put(HIGH_FREQUENCY_SOURCE_NAME, highFrequency10000);
+        sources.put(HIGH_FREQUENCY_5000_SOURCE_NAME, highFrequency5000);
+        sources.put(LEGACY_HIGH_FREQUENCY_5000_SOURCE_NAME, highFrequency5000);
+
+        ExternalCatalogManifest manifest = readExternalCatalogManifest();
+        if (manifest != null) {
+            for (ExternalCatalogManifestSource source : manifest.sources()) {
+                if (sources.containsKey(source.name())) {
+                    throw new IllegalStateException("Duplicate public catalog source name: " + source.name());
                 }
-                EcdictCatalogEntry entry = parseEcdictCatalogLine(line);
-                if (entry == null) {
+                Path sourceFile = manifest.baseDirectory().resolve(source.file()).normalize();
+                ensureInsideExternalCatalogDirectory(manifest.baseDirectory(), sourceFile);
+                CatalogSourceData data = readCatalogSourceFromPath(source.name(), sourceFile, Integer.MAX_VALUE);
+                if (source.wordCount() > 0 && data.words().size() != source.wordCount()) {
+                    log.warn("External public catalog source {} word count mismatch: manifest={}, actual={}",
+                            source.name(),
+                            source.wordCount(),
+                            data.words().size());
+                }
+                sources.put(source.name(), data);
+            }
+        }
+
+        return new CatalogRegistry(signature, Collections.unmodifiableMap(new LinkedHashMap<>(sources)));
+    }
+
+    private CatalogSourceData readCatalogSourceFromClasspath(String sourceName, String resourceName, int maxWords) {
+        ClassPathResource resource = new ClassPathResource(resourceName);
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
+            return readCatalogSource(sourceName, reader, maxWords, "classpath:" + resourceName);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to load public catalog source: " + sourceName, exception);
+        }
+    }
+
+    private CatalogSourceData readCatalogSourceFromPath(String sourceName, Path path, int maxWords) {
+        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            return readCatalogSource(sourceName, reader, maxWords, path.toString());
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to load external public catalog source: " + sourceName, exception);
+        }
+    }
+
+    private CatalogSourceData readCatalogSource(String sourceName, BufferedReader reader, int maxWords, String descriptor) throws IOException {
+        LinkedHashMap<String, EcdictCatalogEntry> entries = new LinkedHashMap<>();
+        String line;
+        boolean firstLine = true;
+        while ((line = reader.readLine()) != null && (maxWords <= 0 || entries.size() < maxWords)) {
+            if (firstLine) {
+                firstLine = false;
+                if (line.startsWith("word\t")) {
                     continue;
                 }
-                entries.putIfAbsent(normalizeIndexedWord(entry.word()), entry);
             }
-        } catch (IOException exception) {
-            throw new IllegalStateException("Failed to load ECDICT high frequency resource", exception);
+            EcdictCatalogEntry entry = parseEcdictCatalogLine(line);
+            if (entry == null) {
+                continue;
+            }
+            entries.putIfAbsent(normalizeIndexedWord(entry.word()), entry);
         }
         if (entries.isEmpty()) {
-            throw new IllegalStateException("ECDICT high frequency resource is empty");
+            throw new IllegalStateException("Public catalog source is empty: " + descriptor);
         }
-        return entries;
+        return new CatalogSourceData(sourceName, List.copyOf(entries.keySet()), Map.copyOf(entries));
+    }
+
+    private String resolveCatalogRegistrySignature() {
+        Path manifestPath = resolveExternalCatalogManifestPath();
+        if (!Files.isRegularFile(manifestPath)) {
+            return "classpath-only";
+        }
+        try {
+            return manifestPath.toAbsolutePath().normalize() + ":" + Files.getLastModifiedTime(manifestPath).toMillis();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to inspect external public catalog manifest", exception);
+        }
+    }
+
+    private ExternalCatalogManifest readExternalCatalogManifest() {
+        Path manifestPath = resolveExternalCatalogManifestPath();
+        if (!Files.isRegularFile(manifestPath)) {
+            return null;
+        }
+        try (BufferedReader reader = Files.newBufferedReader(manifestPath, StandardCharsets.UTF_8)) {
+            JsonNode root = objectMapper.readTree(reader);
+            JsonNode sourceNodes = root.path("sources");
+            if (!sourceNodes.isArray() || sourceNodes.isEmpty()) {
+                throw new IllegalStateException("External public catalog manifest has no sources: " + manifestPath);
+            }
+            List<ExternalCatalogManifestSource> sources = new ArrayList<>();
+            int fallbackSequence = 1;
+            for (JsonNode sourceNode : sourceNodes) {
+                String rawName = sourceNode.path("name").asText("");
+                String rawFile = sourceNode.path("file").asText("");
+                String normalizedName = rawName.trim().toLowerCase(Locale.ROOT);
+                String normalizedFile = rawFile.trim();
+                if (normalizedName.isBlank() || normalizedFile.isBlank()) {
+                    throw new IllegalStateException("External public catalog manifest source is incomplete: " + sourceNode);
+                }
+                int sequence = sourceNode.path("sequence").asInt(fallbackSequence);
+                int wordCount = sourceNode.path("wordCount").asInt(0);
+                sources.add(new ExternalCatalogManifestSource(normalizedName, normalizedFile, wordCount, sequence));
+                fallbackSequence++;
+            }
+            sources.sort(Comparator.comparingInt(ExternalCatalogManifestSource::sequence).thenComparing(ExternalCatalogManifestSource::name));
+            return new ExternalCatalogManifest(manifestPath.getParent(), List.copyOf(sources));
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to read external public catalog manifest: " + manifestPath, exception);
+        }
+    }
+
+    private Path resolveExternalCatalogManifestPath() {
+        Path catalogRoot = resolveCatalogStorageRoot(publicCatalogSourceProperties.resolvedExternalDir());
+        return catalogRoot.resolve(EXTERNAL_CATALOG_MANIFEST_FILE).normalize();
+    }
+
+    private Path resolveCatalogStorageRoot(String configuredDirectory) {
+        Path configuredPath = Path.of(configuredDirectory);
+        if (configuredPath.isAbsolute()) {
+            return configuredPath.normalize();
+        }
+        return resolveProjectRoot().resolve(configuredPath).normalize();
+    }
+
+    private Path resolveProjectRoot() {
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+        Path cursor = current;
+        while (cursor != null) {
+            if (Files.exists(cursor.resolve("docker-compose.yml"))) {
+                return cursor;
+            }
+            cursor = cursor.getParent();
+        }
+        return current;
+    }
+
+    private void ensureInsideExternalCatalogDirectory(Path root, Path target) {
+        if (!target.startsWith(root)) {
+            throw new IllegalStateException("Invalid external public catalog file path: " + target);
+        }
+    }
+
+    private EcdictCatalogEntry findCatalogEntry(String word, String sourceName) {
+        String normalizedWord = normalizeIndexedWord(word);
+        if (normalizedWord.isBlank()) {
+            return null;
+        }
+        CatalogRegistry registry = loadCatalogRegistry();
+        if (sourceName != null && !sourceName.isBlank()) {
+            CatalogSourceData source = registry.sources().get(sourceName.trim().toLowerCase(Locale.ROOT));
+            if (source != null) {
+                return source.entries().get(normalizedWord);
+            }
+        }
+        for (CatalogSourceData source : registry.sources().values()) {
+            EcdictCatalogEntry entry = source.entries().get(normalizedWord);
+            if (entry != null) {
+                return entry;
+            }
+        }
+        return null;
     }
 
     private EcdictCatalogEntry parseEcdictCatalogLine(String line) {
@@ -1119,8 +1523,9 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             return "";
         }
         for (String value : values) {
-            if (hasCleanText(value)) {
-                return UserFacingTextNormalizer.normalizeDisplayText(value);
+            String normalized = sanitizeExampleCandidate(value);
+            if (hasCleanText(normalized)) {
+                return normalized;
             }
         }
         return "";
@@ -1237,7 +1642,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
 
         for (String word : words) {
             try {
-                ImportOutcome outcome = importSingleWord(word, refreshExisting, elasticsearchAvailable);
+                ImportOutcome outcome = importSingleWord(word, refreshExisting, elasticsearchAvailable, null);
                 switch (outcome.action()) {
                     case IMPORTED -> {
                         imported.add(word);
@@ -1274,8 +1679,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         );
     }
 
-        private DictionaryEntryPayload fetchDictionaryEntry(String word) {
-        EcdictCatalogEntry entry = loadEcdictCatalog().get(normalizeIndexedWord(word));
+    private DictionaryEntryPayload fetchDictionaryEntry(String word, String sourceName) {
+        EcdictCatalogEntry entry = findCatalogEntry(word, sourceName);
         if (entry == null) {
             return null;
         }
@@ -1292,7 +1697,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 entry.word(),
                 entry.phonetic(),
                 entry.meaningCn(),
-                example,
                 audioUrl
         )) {
             return null;
@@ -1422,16 +1826,77 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             String word,
             String phonetic,
             String meaningCn,
-            String exampleSentence,
             String audioUrl
     ) {
         return hasCleanText(word)
                 && hasValidPhonetic(phonetic)
                 && hasCleanText(meaningCn)
                 && containsHanCharacter(meaningCn)
-                && hasCleanText(exampleSentence)
                 && hasCleanText(audioUrl)
                 && audioUrl.startsWith("http");
+    }
+
+    private String sanitizeExampleCandidate(String value) {
+        if (!hasCleanText(value)) {
+            return "";
+        }
+        String normalized = UserFacingTextNormalizer.normalizeDisplayText(value);
+        if (isDefinitionLikeEnglishText(normalized)) {
+            return "";
+        }
+        return normalized;
+    }
+
+    private boolean isDefinitionLikeEnglishText(String value) {
+        if (!hasCleanText(value)) {
+            return false;
+        }
+        return PART_OF_SPEECH_PREFIX_PATTERN.matcher(value.trim()).find();
+    }
+
+    private boolean isInvalidGeneratedPublicExample(String targetWord, String correctedEnglish, String chineseSentence) {
+        String normalizedEnglish = UserFacingTextNormalizer.normalizeDisplayText(correctedEnglish);
+        if (!hasCleanText(normalizedEnglish)
+                || !hasCleanText(chineseSentence)
+                || containsHanCharacter(normalizedEnglish)
+                || !hasLatinLetter(normalizedEnglish)
+                || isDefinitionLikeEnglishText(normalizedEnglish)) {
+            return true;
+        }
+
+        String normalizedWord = TextRepairUtils.repair(targetWord).trim();
+        if (hasCleanText(normalizedWord) && normalizedEnglish.equalsIgnoreCase(normalizedWord)) {
+            return true;
+        }
+        if (!normalizedEnglish.matches(".*\\s+.*")) {
+            return true;
+        }
+        if (countEnglishTokens(normalizedEnglish) < 4) {
+            return true;
+        }
+        return hasCleanText(normalizedWord) && !containsTargetWord(normalizedEnglish, normalizedWord);
+    }
+
+    private int countEnglishTokens(String value) {
+        int count = 0;
+        java.util.regex.Matcher matcher = ENGLISH_TOKEN_PATTERN.matcher(value);
+        while (matcher.find()) {
+            count++;
+        }
+        return count;
+    }
+
+    private boolean containsTargetWord(String sentence, String targetWord) {
+        if (!hasCleanText(sentence) || !hasCleanText(targetWord)) {
+            return false;
+        }
+        String normalizedSentence = sentence.toLowerCase(Locale.ROOT);
+        String normalizedWord = targetWord.toLowerCase(Locale.ROOT).trim();
+        if (normalizedWord.contains(" ")) {
+            return normalizedSentence.contains(normalizedWord);
+        }
+        Pattern targetPattern = Pattern.compile("(?i)(^|[^a-z])" + Pattern.quote(normalizedWord) + "([^a-z]|$)");
+        return targetPattern.matcher(sentence).find();
     }
 
     private boolean hasCleanText(String value) {
@@ -1576,6 +2041,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         row.setPhonetic(resolvePersistedPhonetic(payload.word(), payload.phonetic(), payload.importSource()));
         row.setMeaningCn(payload.meaningCn());
         row.setExampleSentence(payload.exampleSentence());
+        row.setExampleAudioUrl("");
         row.setBncRank(payload.bncRank());
         row.setFrqRank(payload.frqRank());
         row.setWordfreqZipf(payload.wordfreqZipf());
@@ -1614,6 +2080,20 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         }
     }
 
+    private void syncEntryToIndex(String entryType, long entryId, boolean elasticsearchAvailable) {
+        if (!elasticsearchAvailable) {
+            return;
+        }
+        try {
+            SearchDocumentVo row = loadSearchDocument(entryType, entryId);
+            if (row != null) {
+                indexDocument(row);
+            }
+        } catch (RuntimeException exception) {
+            log.warn("Failed to index {} entry {} into Elasticsearch: {}", entryType, entryId, exception.getMessage());
+        }
+    }
+
     private void indexPublicEntry(long entryId) {
         SearchDocumentVo row = searchVocabularyMapper.findPublicDocumentById(entryId);
         if (row != null) {
@@ -1623,6 +2103,354 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
 
     private Long findPublicEntryId(String word) {
         return searchVocabularyMapper.findPublicEntryId(word);
+    }
+
+    private SearchDocumentVo loadSearchDocument(String entryType, long entryId) {
+        return PUBLIC_ENTRY_TYPE.equalsIgnoreCase(entryType)
+                ? searchVocabularyMapper.findPublicDocumentById(entryId)
+                : searchVocabularyMapper.findUserDocumentById(entryId);
+    }
+
+    private Map<String, PublicEnrichmentOutcome> processPublicTextTasks(
+            List<PublicTaskContext> tasks,
+            int batchSize,
+            int workerConcurrency
+    ) {
+        if (tasks.isEmpty()) {
+            return Map.of();
+        }
+        ExecutorService executor = Executors.newFixedThreadPool(Math.max(1, workerConcurrency));
+        try {
+            List<Callable<Map<String, PublicEnrichmentOutcome>>> jobs = new ArrayList<>();
+            for (List<PublicTaskContext> batch : partitionList(tasks, batchSize)) {
+                jobs.add(() -> processPublicTextBatch(batch));
+            }
+            return mergePublicOutcomes(tasks, executor.invokeAll(jobs));
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return failurePublicOutcomes(tasks, "OpenAI public example generation interrupted");
+        } finally {
+            shutdownExecutor(executor, "public example generation");
+        }
+    }
+
+    private Map<String, UserEnrichmentOutcome> processUserTextTasks(
+            List<UserTaskContext> tasks,
+            int batchSize,
+            int workerConcurrency
+    ) {
+        if (tasks.isEmpty()) {
+            return Map.of();
+        }
+        ExecutorService executor = Executors.newFixedThreadPool(Math.max(1, workerConcurrency));
+        try {
+            List<Callable<Map<String, UserEnrichmentOutcome>>> jobs = new ArrayList<>();
+            for (List<UserTaskContext> batch : partitionList(tasks, batchSize)) {
+                jobs.add(() -> processUserTextBatch(batch));
+            }
+            return mergeUserOutcomes(tasks, executor.invokeAll(jobs));
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return failureUserOutcomes(tasks, "OpenAI user example enrichment interrupted");
+        } finally {
+            shutdownExecutor(executor, "user example enrichment");
+        }
+    }
+
+    private Map<String, PublicEnrichmentOutcome> processPublicTextBatch(List<PublicTaskContext> tasks) {
+        List<OpenAiExampleEnrichmentClient.PublicExampleGenerationRequest> requests = tasks.stream()
+                .map(context -> new OpenAiExampleEnrichmentClient.PublicExampleGenerationRequest(
+                        context.task().entryType(),
+                        context.task().entryId(),
+                        TextRepairUtils.repair(context.entry().getWord()),
+                        UserFacingTextNormalizer.normalizeMeaningText(context.entry().getMeaningCn()),
+                        UserFacingTextNormalizer.normalizeMeaningText(context.entry().getCategory()),
+                        UserFacingTextNormalizer.normalizeDisplayText(context.entry().getExampleSentence())
+                ))
+                .toList();
+        try {
+            Map<String, PublicEnrichmentOutcome> outcomeByKey = new HashMap<>();
+            Map<String, PublicTaskContext> contextByKey = new HashMap<>();
+            for (PublicTaskContext context : tasks) {
+                contextByKey.put(entryTaskKey(context.task().entryType(), context.task().entryId()), context);
+            }
+            for (OpenAiExampleEnrichmentClient.PublicExampleGenerationResult result : openAiExampleEnrichmentClient.generatePublicExamples(requests)) {
+                String correctedEnglish = truncateText(
+                        UserFacingTextNormalizer.normalizeDisplayText(result.correctedEnglish()),
+                        255
+                );
+                String chineseSentence = truncateText(
+                        UserFacingTextNormalizer.normalizeDisplayText(result.chineseSentence()),
+                        255
+                );
+                PublicTaskContext context = contextByKey.get(entryTaskKey(result.entryType(), result.entryId()));
+                String targetWord = context == null ? "" : TextRepairUtils.repair(context.entry().getWord());
+                if (isInvalidGeneratedPublicExample(targetWord, correctedEnglish, chineseSentence)) {
+                    outcomeByKey.put(entryTaskKey(result.entryType(), result.entryId()), PublicEnrichmentOutcome.failure("OPENAI_RESULT_INCOMPLETE"));
+                    continue;
+                }
+                outcomeByKey.put(entryTaskKey(result.entryType(), result.entryId()), PublicEnrichmentOutcome.success(correctedEnglish, chineseSentence));
+            }
+            return outcomeByKey;
+        } catch (Exception exception) {
+            return failurePublicOutcomes(tasks, normalizeErrorMessage(exception));
+        }
+    }
+
+    private Map<String, UserEnrichmentOutcome> processUserTextBatch(List<UserTaskContext> tasks) {
+        List<OpenAiExampleEnrichmentClient.UserExampleEnrichmentRequest> requests = tasks.stream()
+                .map(context -> new OpenAiExampleEnrichmentClient.UserExampleEnrichmentRequest(
+                        context.task().entryType(),
+                        context.task().entryId(),
+                        context.originalEnglish()
+                ))
+                .toList();
+        try {
+            Map<String, UserEnrichmentOutcome> outcomeByKey = new HashMap<>();
+            for (OpenAiExampleEnrichmentClient.UserExampleEnrichmentResult result : openAiExampleEnrichmentClient.enrichUserExamples(requests)) {
+                String correctedEnglish = truncateText(
+                        UserFacingTextNormalizer.normalizeDisplayText(result.correctedEnglish()),
+                        255
+                );
+                String chineseSentence = truncateText(
+                        UserFacingTextNormalizer.normalizeDisplayText(result.chineseSentence()),
+                        255
+                );
+                if (!hasCleanText(correctedEnglish)
+                        || !hasCleanText(chineseSentence)
+                        || isDefinitionLikeEnglishText(correctedEnglish)) {
+                    outcomeByKey.put(entryTaskKey(result.entryType(), result.entryId()), UserEnrichmentOutcome.failure("OPENAI_RESULT_INCOMPLETE"));
+                    continue;
+                }
+                outcomeByKey.put(entryTaskKey(result.entryType(), result.entryId()), UserEnrichmentOutcome.success(correctedEnglish, chineseSentence));
+            }
+            return outcomeByKey;
+        } catch (Exception exception) {
+            return failureUserOutcomes(tasks, normalizeErrorMessage(exception));
+        }
+    }
+
+    private boolean processPublicTaskCompletions(
+            List<PublicTaskContext> publicTextTasks,
+            List<PublicTaskContext> publicAudioOnlyTasks,
+            Map<String, PublicEnrichmentOutcome> publicOutcomeByKey,
+            boolean elasticsearchAvailable
+    ) {
+        List<Callable<Boolean>> jobs = new ArrayList<>();
+        for (PublicTaskContext context : publicTextTasks) {
+            jobs.add(() -> {
+                String taskKey = entryTaskKey(context.task().entryType(), context.task().entryId());
+                PublicEnrichmentOutcome outcome = publicOutcomeByKey.get(taskKey);
+                if (outcome == null) {
+                    exampleEnrichmentTaskMapper.markTaskFailed(context.task().taskId(), "OPENAI_RESULT_MISSING");
+                    return false;
+                }
+                if (!outcome.success()) {
+                    exampleEnrichmentTaskMapper.markTaskFailed(context.task().taskId(), outcome.errorMessage());
+                    return false;
+                }
+                return finishPublicTask(context, outcome.correctedEnglish(), outcome.chineseSentence(), elasticsearchAvailable);
+            });
+        }
+        for (PublicTaskContext context : publicAudioOnlyTasks) {
+            jobs.add(() -> finishPublicTask(
+                    context,
+                    UserFacingTextNormalizer.normalizeDisplayText(context.entry().getCorrectedEnglish()),
+                    UserFacingTextNormalizer.normalizeDisplayText(context.entry().getChineseSentence()),
+                    elasticsearchAvailable
+            ));
+        }
+        if (jobs.isEmpty()) {
+            return false;
+        }
+
+        ExecutorService executor = Executors.newFixedThreadPool(Math.max(1, exampleEnrichmentProperties.resolvedTtsConcurrency()));
+        try {
+            boolean indexChanged = false;
+            for (Future<Boolean> future : executor.invokeAll(jobs)) {
+                indexChanged = resolveBooleanFuture(future) || indexChanged;
+            }
+            return indexChanged;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            log.warn("Public example completion workers were interrupted");
+            return false;
+        } finally {
+            shutdownExecutor(executor, "public example completion");
+        }
+    }
+
+    private Map<String, PublicEnrichmentOutcome> mergePublicOutcomes(
+            List<PublicTaskContext> tasks,
+            List<Future<Map<String, PublicEnrichmentOutcome>>> futures
+    ) {
+        Map<String, PublicEnrichmentOutcome> outcomeByKey = new HashMap<>();
+        for (Future<Map<String, PublicEnrichmentOutcome>> future : futures) {
+            try {
+                outcomeByKey.putAll(future.get());
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                return failurePublicOutcomes(tasks, "OpenAI public example generation interrupted");
+            } catch (ExecutionException exception) {
+                return failurePublicOutcomes(tasks, normalizeErrorMessage(exception));
+            }
+        }
+        return outcomeByKey;
+    }
+
+    private Map<String, UserEnrichmentOutcome> mergeUserOutcomes(
+            List<UserTaskContext> tasks,
+            List<Future<Map<String, UserEnrichmentOutcome>>> futures
+    ) {
+        Map<String, UserEnrichmentOutcome> outcomeByKey = new HashMap<>();
+        for (Future<Map<String, UserEnrichmentOutcome>> future : futures) {
+            try {
+                outcomeByKey.putAll(future.get());
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                return failureUserOutcomes(tasks, "OpenAI user example enrichment interrupted");
+            } catch (ExecutionException exception) {
+                return failureUserOutcomes(tasks, normalizeErrorMessage(exception));
+            }
+        }
+        return outcomeByKey;
+    }
+
+    private Map<String, PublicEnrichmentOutcome> failurePublicOutcomes(List<PublicTaskContext> tasks, String errorMessage) {
+        Map<String, PublicEnrichmentOutcome> outcomeByKey = new HashMap<>();
+        for (PublicTaskContext context : tasks) {
+            outcomeByKey.put(entryTaskKey(context.task().entryType(), context.task().entryId()), PublicEnrichmentOutcome.failure(errorMessage));
+        }
+        return outcomeByKey;
+    }
+
+    private Map<String, UserEnrichmentOutcome> failureUserOutcomes(List<UserTaskContext> tasks, String errorMessage) {
+        Map<String, UserEnrichmentOutcome> outcomeByKey = new HashMap<>();
+        for (UserTaskContext context : tasks) {
+            outcomeByKey.put(entryTaskKey(context.task().entryType(), context.task().entryId()), UserEnrichmentOutcome.failure(errorMessage));
+        }
+        return outcomeByKey;
+    }
+
+    private boolean resolveBooleanFuture(Future<Boolean> future) {
+        try {
+            return Boolean.TRUE.equals(future.get());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (ExecutionException exception) {
+            log.warn("Public example completion worker failed: {}", normalizeErrorMessage(exception));
+            return false;
+        }
+    }
+
+    private <T> List<List<T>> partitionList(List<T> items, int batchSize) {
+        List<List<T>> batches = new ArrayList<>();
+        if (items.isEmpty()) {
+            return batches;
+        }
+        int safeBatchSize = Math.max(1, batchSize);
+        for (int index = 0; index < items.size(); index += safeBatchSize) {
+            batches.add(items.subList(index, Math.min(items.size(), index + safeBatchSize)));
+        }
+        return batches;
+    }
+
+    private void shutdownExecutor(ExecutorService executor, String poolName) {
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            executor.shutdownNow();
+            log.warn("{} executor shutdown was interrupted", poolName);
+        }
+    }
+
+    private boolean finishPublicTask(PublicTaskContext context, String correctedEnglish, String chineseSentence, boolean elasticsearchAvailable) {
+        if (isInvalidGeneratedPublicExample(TextRepairUtils.repair(context.entry().getWord()), correctedEnglish, chineseSentence)) {
+            exampleEnrichmentTaskMapper.markTaskFailed(context.task().taskId(), "OPENAI_RESULT_INCOMPLETE");
+            return false;
+        }
+        String existingCorrectedEnglish = UserFacingTextNormalizer.normalizeDisplayText(context.entry().getCorrectedEnglish());
+        String existingChineseSentence = UserFacingTextNormalizer.normalizeDisplayText(context.entry().getChineseSentence());
+        String exampleAudioUrl = normalizeExampleAudioUrl(PUBLIC_ENTRY_TYPE, context.entry().getExampleAudioUrl());
+        if (!sameText(existingCorrectedEnglish, correctedEnglish) || !sameText(existingChineseSentence, chineseSentence)) {
+            exampleAudioUrl = "";
+            updateExampleEnrichment(context.task().entryType(), context.task().entryId(), correctedEnglish, chineseSentence, exampleAudioUrl);
+        }
+        if (!exampleEnrichmentProperties.resolvedExampleAudioEnabled()) {
+            searchVocabularyMapper.updatePublicExampleAudioUrl(context.task().entryId(), exampleAudioUrl);
+            exampleEnrichmentTaskMapper.markTaskSucceeded(context.task().taskId());
+            syncEntryToIndex(context.task().entryType(), context.task().entryId(), elasticsearchAvailable);
+            return elasticsearchAvailable;
+        }
+
+        if (!exampleAudioStorageService.hasPublicExampleAudio(context.task().entryId(), correctedEnglish)) {
+            if (!openAiExampleEnrichmentClient.isSpeechConfigured()) {
+                exampleEnrichmentTaskMapper.markTaskFailed(context.task().taskId(), "OPENAI_TTS_NOT_CONFIGURED");
+                return false;
+            }
+            try {
+                byte[] payload = openAiExampleEnrichmentClient.synthesizeSpeech(correctedEnglish);
+                exampleAudioStorageService.storePublicExampleAudio(context.task().entryId(), correctedEnglish, payload);
+                exampleAudioUrl = exampleAudioStorageService.publicExampleAudioUrl(context.task().entryId());
+            } catch (Exception exception) {
+                exampleEnrichmentTaskMapper.markTaskFailed(context.task().taskId(), normalizeErrorMessage(exception));
+                return false;
+            }
+        } else if (!hasCleanText(exampleAudioUrl)) {
+            exampleAudioUrl = exampleAudioStorageService.publicExampleAudioUrl(context.task().entryId());
+        }
+
+        searchVocabularyMapper.updatePublicExampleAudioUrl(context.task().entryId(), exampleAudioUrl);
+        exampleEnrichmentTaskMapper.markTaskSucceeded(context.task().taskId());
+        syncEntryToIndex(context.task().entryType(), context.task().entryId(), elasticsearchAvailable);
+        return elasticsearchAvailable;
+    }
+
+    private boolean needsPublicExampleText(SearchDocumentVo entry) {
+        return !hasCleanText(entry.getCorrectedEnglish())
+                || !hasCleanText(entry.getChineseSentence())
+                || isInvalidGeneratedPublicExample(
+                TextRepairUtils.repair(entry.getWord()),
+                UserFacingTextNormalizer.normalizeDisplayText(entry.getCorrectedEnglish()),
+                UserFacingTextNormalizer.normalizeDisplayText(entry.getChineseSentence())
+        );
+    }
+
+    private boolean needsPublicExampleAudio(SearchDocumentVo entry) {
+        if (!exampleEnrichmentProperties.resolvedExampleAudioEnabled()) {
+            return false;
+        }
+        String correctedEnglish = UserFacingTextNormalizer.normalizeDisplayText(entry.getCorrectedEnglish());
+        if (!hasCleanText(correctedEnglish)) {
+            return false;
+        }
+        return !hasCleanText(entry.getExampleAudioUrl())
+                || !exampleAudioStorageService.hasPublicExampleAudio(entry.getEntryId(), correctedEnglish);
+    }
+
+    private String normalizeExampleAudioUrl(String entryType, String exampleAudioUrl) {
+        if (!PUBLIC_ENTRY_TYPE.equalsIgnoreCase(entryType)) {
+            return "";
+        }
+        String normalized = exampleAudioUrl == null ? "" : exampleAudioUrl.trim();
+        return normalized.isBlank() ? "" : normalized;
+    }
+
+    private void updateExampleEnrichment(String entryType, long entryId, String correctedEnglish, String chineseSentence, String exampleAudioUrl) {
+        if (PUBLIC_ENTRY_TYPE.equalsIgnoreCase(entryType)) {
+            searchVocabularyMapper.updatePublicExampleEnrichment(entryId, correctedEnglish, chineseSentence, exampleAudioUrl);
+            return;
+        }
+        searchVocabularyMapper.updateUserExampleEnrichment(entryId, correctedEnglish, chineseSentence);
+    }
+
+    private String entryTaskKey(String entryType, long entryId) {
+        return entryType + ":" + entryId;
     }
 
     private DetailVo loadDetailRow(long entryId, VocabularyEntryType entryType) {
@@ -1642,26 +2470,28 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         return rows;
     }
 
-        private ImportOutcome importSingleWord(String word, boolean refreshExisting, boolean elasticsearchAvailable) {
+    private ImportOutcome importSingleWord(String word, boolean refreshExisting, boolean elasticsearchAvailable, String sourceName) {
         Long existingId = findExistingPublicEntryId(word);
         if (existingId != null && !refreshExisting) {
-            return new ImportOutcome(ImportAction.SKIPPED, existingId, null);
+            return new ImportOutcome(ImportAction.SKIPPED, existingId, null, false);
         }
 
-        DictionaryEntryPayload payload = fetchDictionaryEntry(word);
+        DictionaryEntryPayload payload = fetchDictionaryEntry(word, sourceName);
         if (payload == null) {
-            return new ImportOutcome(ImportAction.FAILED, existingId, "INCOMPLETE_OR_MISSING_DICTIONARY_PAYLOAD");
+            return new ImportOutcome(ImportAction.FAILED, existingId, "INCOMPLETE_OR_MISSING_DICTIONARY_PAYLOAD", false);
         }
 
         if (existingId == null) {
             long entryId = createPublicEntry(payload);
+            exampleEnrichmentTaskMapper.upsertTask(PUBLIC_ENTRY_TYPE, entryId);
             syncPublicEntryToIndex(entryId, elasticsearchAvailable);
-            return new ImportOutcome(ImportAction.IMPORTED, entryId, null);
+            return new ImportOutcome(ImportAction.IMPORTED, entryId, null, hasCleanText(payload.exampleSentence()));
         }
 
         updatePublicEntry(existingId, payload);
+        exampleEnrichmentTaskMapper.upsertTask(PUBLIC_ENTRY_TYPE, existingId);
         syncPublicEntryToIndex(existingId, elasticsearchAvailable);
-        return new ImportOutcome(ImportAction.UPDATED, existingId, null);
+        return new ImportOutcome(ImportAction.UPDATED, existingId, null, hasCleanText(payload.exampleSentence()));
     }
 
     private String extractExample(JsonNode senses) {
@@ -1717,6 +2547,27 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 || normalizedName.contains("cantonese");
     }
 
+    private boolean shouldEnrichExampleSentence(String value) {
+        if (!hasCleanText(value)) {
+            return false;
+        }
+        String normalized = UserFacingTextNormalizer.normalizeDisplayText(value);
+        if (normalized.isBlank()
+                || containsHanCharacter(normalized)
+                || !hasLatinLetter(normalized)
+                || isDefinitionLikeEnglishText(normalized)) {
+            return false;
+        }
+
+        int wordCount = 0;
+        for (String token : normalized.split("\\s+")) {
+            if (token.chars().anyMatch(Character::isLetter)) {
+                wordCount++;
+            }
+        }
+        return wordCount >= 2 || normalized.matches(".*[.!?,;:].*");
+    }
+
     private int normalizeDatabaseContent() {
         int updated = 0;
         updated += normalizeVocabularyEntries();
@@ -1766,7 +2617,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         if (word == null || word.isBlank()) {
             return normalized;
         }
-        EcdictCatalogEntry catalogEntry = loadEcdictCatalog().get(normalizeIndexedWord(word));
+        EcdictCatalogEntry catalogEntry = findCatalogEntry(word, null);
         if (catalogEntry == null || PhoneticNormalizer.hasPlaceholder(catalogEntry.phonetic())) {
             return normalized;
         }
@@ -1913,6 +2764,9 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                                 Map.entry("phonetic", Map.of("type", "text")),
                                 Map.entry("meaningCn", Map.of("type", "text")),
                                 Map.entry("exampleSentence", Map.of("type", "text")),
+                                Map.entry("correctedEnglish", Map.of("type", "text")),
+                                Map.entry("chineseSentence", Map.of("type", "text")),
+                                Map.entry("exampleAudioUrl", Map.of("type", "keyword")),
                                 Map.entry("category", Map.of("type", "text")),
                                 Map.entry("bncRank", Map.of("type", "integer")),
                                 Map.entry("frqRank", Map.of("type", "integer")),
@@ -1931,6 +2785,9 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             String normalizedPhonetic = SearchTextUtools.normalizePhonetic(row.getPhonetic());
             String normalizedMeaning = UserFacingTextNormalizer.normalizeMeaningText(row.getMeaningCn());
             String normalizedExample = UserFacingTextNormalizer.normalizeDisplayText(row.getExampleSentence());
+            String normalizedCorrectedEnglish = UserFacingTextNormalizer.normalizeDisplayText(row.getCorrectedEnglish());
+            String normalizedChineseSentence = UserFacingTextNormalizer.normalizeDisplayText(row.getChineseSentence());
+            String normalizedExampleAudioUrl = normalizeExampleAudioUrl(row.getEntryType(), row.getExampleAudioUrl());
             String normalizedCategory = UserFacingTextNormalizer.normalizeMeaningText(row.getCategory());
             String normalizedDataQuality = UserFacingTextNormalizer.normalizeDisplayText(row.getDataQuality());
             String normalizedImportSource = SearchTextUtools.normalizeImportSource(row.getImportSource());
@@ -1948,6 +2805,9 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             document.put("phonetic", normalizedPhonetic);
             document.put("meaningCn", normalizedMeaning);
             document.put("exampleSentence", normalizedExample);
+            document.put("correctedEnglish", normalizedCorrectedEnglish);
+            document.put("chineseSentence", normalizedChineseSentence);
+            document.put("exampleAudioUrl", normalizedExampleAudioUrl);
             document.put("category", normalizedCategory);
             document.put("bncRank", row.getBncRank());
             document.put("frqRank", row.getFrqRank());
@@ -2013,6 +2873,9 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             String meaningCn,
             String source,
             String exampleSentence,
+            String correctedEnglish,
+            String chineseSentence,
+            String exampleAudioUrl,
             String category,
             Integer bncRank,
             Integer frqRank,
@@ -2032,6 +2895,9 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             String meaningCn,
             String source,
             String exampleSentence,
+            String correctedEnglish,
+            String chineseSentence,
+            String exampleAudioUrl,
             String category,
             Integer bncRank,
             Integer frqRank,
@@ -2041,6 +2907,89 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             String importSource,
             double score,
             MatchType matchType
+    ) {
+    }
+
+    private record ClaimedEnrichmentTask(
+            long taskId,
+            String entryType,
+            long entryId
+    ) {
+    }
+
+    private record PublicTaskContext(
+            ClaimedEnrichmentTask task,
+            SearchDocumentVo entry
+    ) {
+    }
+
+    private record UserTaskContext(
+            ClaimedEnrichmentTask task,
+            SearchDocumentVo entry,
+            String originalEnglish
+    ) {
+    }
+
+    private record PublicEnrichmentOutcome(
+            String correctedEnglish,
+            String chineseSentence,
+            String errorMessage
+    ) {
+        static PublicEnrichmentOutcome success(String correctedEnglish, String chineseSentence) {
+            return new PublicEnrichmentOutcome(correctedEnglish, chineseSentence, "");
+        }
+
+        static PublicEnrichmentOutcome failure(String errorMessage) {
+            return new PublicEnrichmentOutcome("", "", errorMessage);
+        }
+
+        boolean success() {
+            return errorMessage == null || errorMessage.isBlank();
+        }
+    }
+
+    private record UserEnrichmentOutcome(
+            String correctedEnglish,
+            String chineseSentence,
+            String errorMessage
+    ) {
+        static UserEnrichmentOutcome success(String correctedEnglish, String chineseSentence) {
+            return new UserEnrichmentOutcome(correctedEnglish, chineseSentence, "");
+        }
+
+        static UserEnrichmentOutcome failure(String errorMessage) {
+            return new UserEnrichmentOutcome("", "", errorMessage);
+        }
+
+        boolean success() {
+            return errorMessage == null || errorMessage.isBlank();
+        }
+    }
+
+    private record CatalogRegistry(
+            String signature,
+            Map<String, CatalogSourceData> sources
+    ) {
+    }
+
+    private record CatalogSourceData(
+            String sourceName,
+            List<String> words,
+            Map<String, EcdictCatalogEntry> entries
+    ) {
+    }
+
+    private record ExternalCatalogManifest(
+            Path baseDirectory,
+            List<ExternalCatalogManifestSource> sources
+    ) {
+    }
+
+    private record ExternalCatalogManifestSource(
+            String name,
+            String file,
+            int wordCount,
+            int sequence
     ) {
     }
 
@@ -2104,7 +3053,15 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     private record ImportOutcome(
             ImportAction action,
             Long entryId,
-            String errorMessage
+            String errorMessage,
+            boolean hasExample
+    ) {
+    }
+
+    private record ImportTaskResult(
+            long itemId,
+            boolean claimed,
+            ImportOutcome outcome
     ) {
     }
 

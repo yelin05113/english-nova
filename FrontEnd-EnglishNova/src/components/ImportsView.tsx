@@ -66,6 +66,9 @@ export function ImportsView() {
         <button type="button" className="primary" onClick={() => void onImport()}>
           上传并导入
         </button>
+        <div className="import-note-card" role="note" aria-label="导入说明">
+          目前只做了 anki 的导入，且导入单词不稳定，后续会更新。
+        </div>
       </div>
     </div>
   )

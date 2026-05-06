@@ -1,6 +1,7 @@
 package com.nightfall.englishnova.shared.dto;
 
 import com.nightfall.englishnova.shared.enums.QuizMode;
+import com.nightfall.englishnova.shared.enums.QuizOptionStrategy;
 import com.nightfall.englishnova.shared.enums.QuizTargetType;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -26,6 +27,8 @@ public record QuizSessionDto(
         int todayCorrectAttempts,
         @Schema(description = "Today's total answer attempt count")
         int todayTotalAttempts,
+        @Schema(description = "Current quiz option strategy")
+        QuizOptionStrategy quizOptionStrategy,
         @Schema(description = "Session status")
         String status
 ) {

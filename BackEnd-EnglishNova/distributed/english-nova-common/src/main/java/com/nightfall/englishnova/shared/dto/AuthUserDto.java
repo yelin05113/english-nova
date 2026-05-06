@@ -1,5 +1,6 @@
 package com.nightfall.englishnova.shared.dto;
 
+import com.nightfall.englishnova.shared.enums.QuizOptionStrategy;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(name = "AuthUserDto", description = "Authenticated user summary")
@@ -9,6 +10,8 @@ public record AuthUserDto(
         @Schema(description = "Username")
         String username,
         @Schema(description = "Avatar image URL")
-        String avatarUrl
+        String avatarUrl,
+        @Schema(description = "Quiz option strategy preference")
+        QuizOptionStrategy quizOptionStrategy
 ) {
 }

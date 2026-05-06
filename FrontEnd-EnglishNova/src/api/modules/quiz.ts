@@ -1,9 +1,11 @@
 import { apiFetch, type ApiAuthOptions } from '../client'
 import type { ImportPlatform } from './imports'
+import type { SearchEntryType } from './search'
 
 export type QuizMode = 'CN_TO_EN' | 'EN_TO_CN' | 'MIXED'
 export type PromptType = 'CN_TO_EN' | 'EN_TO_CN'
-export type QuizTargetType = 'USER_WORDBOOK' | 'PUBLIC_WORDBOOK'
+export type QuizTargetType = 'USER_WORDBOOK' | 'PUBLIC_WORDBOOK' | 'WORD_NOTEBOOK'
+export type QuizOptionStrategy = 'SIMILAR' | 'RELATED' | 'RANDOM'
 
 export interface WordbookSummary {
   id: number
@@ -39,11 +41,25 @@ export interface QuizQuestion {
   promptType: PromptType
   promptText: string
   currentWord: string
+  meaningCn: string
   phonetic: string
   audioUrl: string
+  exampleSentence: string
+  correctedExampleSentence: string
+  chineseSentence: string
+  exampleAudioUrl: string
+  sourceEntryType: SearchEntryType | null
+  sourceEntryId: number | null
   options: string[]
+  optionDetails: QuizOptionDetail[]
   progress: number
   totalQuestions: number
+}
+
+export interface QuizOptionDetail {
+  value: string
+  word: string
+  meaningCn: string
 }
 
 export interface QuizSession {
@@ -57,6 +73,7 @@ export interface QuizSession {
   correctAnswers: number
   todayCorrectAttempts: number
   todayTotalAttempts: number
+  quizOptionStrategy: QuizOptionStrategy
   status: string
 }
 
@@ -76,6 +93,7 @@ export interface PublicWordbookProgressSnapshot {
 export interface QuizAnswerResult {
   correct: boolean
   correctOption: string
+  selectedOption: string
   remainingQuestions: number
   dailyTargetJustCompleted: boolean
   publicWordbookProgress: PublicWordbookProgressSnapshot | null
@@ -125,6 +143,20 @@ async function getSessionState(sessionId: string, options?: ApiAuthOptions) {
   return apiFetch<QuizSessionState>(`/quiz/sessions/${sessionId}`, undefined, withAuth(options))
 }
 
+async function refreshQuestionOptions(
+  sessionId: string,
+  attemptId: number,
+  options?: ApiAuthOptions,
+) {
+  return apiFetch<QuizSessionState>(
+    `/quiz/sessions/${sessionId}/questions/${attemptId}/options/refresh`,
+    {
+      method: 'POST',
+    },
+    withAuth(options),
+  )
+}
+
 async function answerQuestion(
   sessionId: string,
   payload: AnswerQuizQuestionRequest,
@@ -146,5 +178,6 @@ export const quizApi = {
   getWordbookProgress,
   createSession,
   getSessionState,
+  refreshQuestionOptions,
   answerQuestion,
 }

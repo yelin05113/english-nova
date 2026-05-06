@@ -30,7 +30,7 @@ public class PublicWordbookController {
 
     @GetMapping
     public ApiResponse<List<PublicWordbookDto>> listPublicWordbooks(HttpServletRequest request) {
-        CurrentUser user = RequestUserExtractor.require(request);
+        CurrentUser user = RequestUserExtractor.optional(request);
         return ApiResponse.success(searchCatalogService.listPublicWordbooks(user));
     }
 
@@ -39,7 +39,7 @@ public class PublicWordbookController {
             @PathVariable long id,
             HttpServletRequest request
     ) {
-        RequestUserExtractor.require(request);
+        RequestUserExtractor.optional(request);
         return ApiResponse.success(searchCatalogService.listPublicWordbookEntries(id));
     }
 

@@ -1,10 +1,12 @@
 package com.nightfall.englishnova.search.controller;
 
 import com.nightfall.englishnova.search.service.AudioProxyPayload;
+import com.nightfall.englishnova.search.service.EnglishChatService;
 import com.nightfall.englishnova.search.service.SearchCatalogService;
 import com.nightfall.englishnova.shared.auth.CurrentUser;
 import com.nightfall.englishnova.shared.auth.RequestUserExtractor;
 import com.nightfall.englishnova.shared.common.ApiResponse;
+import com.nightfall.englishnova.shared.dto.EnglishChatRequestDto;
 import com.nightfall.englishnova.shared.dto.PublicCatalogImportJobDto;
 import com.nightfall.englishnova.shared.dto.PublicCatalogImportJobRequest;
 import com.nightfall.englishnova.shared.dto.PublicCatalogImportRequest;
@@ -17,6 +19,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,9 +36,14 @@ import java.util.List;
 public class SearchController {
 
     private final SearchCatalogService searchCatalogService;
+    private final EnglishChatService englishChatService;
 
-    public SearchController(SearchCatalogService searchCatalogService) {
+    public SearchController(
+            SearchCatalogService searchCatalogService,
+            EnglishChatService englishChatService
+    ) {
         this.searchCatalogService = searchCatalogService;
+        this.englishChatService = englishChatService;
     }
 
     @GetMapping("/words")
@@ -79,6 +87,33 @@ public class SearchController {
                 .cacheControl(CacheControl.maxAge(Duration.ofDays(30)).cachePublic())
                 .contentType(contentType)
                 .body(payload.content());
+    }
+
+    @GetMapping("/example-audio/{entryId}")
+    public ResponseEntity<byte[]> exampleAudio(@PathVariable long entryId) {
+        AudioProxyPayload payload = searchCatalogService.getExampleAudio(entryId);
+        MediaType contentType = MediaType.APPLICATION_OCTET_STREAM;
+        if (payload.contentType() != null && !payload.contentType().isBlank()) {
+            contentType = MediaType.parseMediaType(payload.contentType());
+        }
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(Duration.ofDays(30)).cachePublic())
+                .contentType(contentType)
+                .body(payload.content());
+    }
+
+    @PostMapping(value = "/ai/english-chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<StreamingResponseBody> englishChat(
+            @RequestBody(required = false) EnglishChatRequestDto request,
+            HttpServletRequest servletRequest
+    ) {
+        CurrentUser user = RequestUserExtractor.require(servletRequest);
+        StreamingResponseBody responseBody = outputStream -> englishChatService.streamEnglishChat(user, request, outputStream);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .contentType(MediaType.TEXT_EVENT_STREAM)
+                .header("X-Accel-Buffering", "no")
+                .body(responseBody);
     }
 
     @PostMapping("/public-catalog/import")

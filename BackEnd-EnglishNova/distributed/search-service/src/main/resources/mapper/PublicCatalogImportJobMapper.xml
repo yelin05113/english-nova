@@ -91,7 +91,7 @@
             entry_id = #{entryId},
             has_phonetic = 1,
             has_meaning_cn = 1,
-            has_example = 1,
+            has_example = #{hasExample},
             has_category = 1,
             has_audio = 1,
             has_definition = 1,

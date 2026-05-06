@@ -35,6 +35,24 @@ public interface SearchVocabularyMapper {
             @Param("importSource") String importSource
     );
 
+    void updatePublicExampleEnrichment(
+            @Param("entryId") long entryId,
+            @Param("correctedEnglish") String correctedEnglish,
+            @Param("chineseSentence") String chineseSentence,
+            @Param("exampleAudioUrl") String exampleAudioUrl
+    );
+
+    void updateUserExampleEnrichment(
+            @Param("entryId") long entryId,
+            @Param("correctedEnglish") String correctedEnglish,
+            @Param("chineseSentence") String chineseSentence
+    );
+
+    void updatePublicExampleAudioUrl(
+            @Param("entryId") long entryId,
+            @Param("exampleAudioUrl") String exampleAudioUrl
+    );
+
     SearchDocumentVo findPublicDocumentById(@Param("entryId") long entryId);
 
     SearchDocumentVo findUserDocumentById(@Param("entryId") long entryId);

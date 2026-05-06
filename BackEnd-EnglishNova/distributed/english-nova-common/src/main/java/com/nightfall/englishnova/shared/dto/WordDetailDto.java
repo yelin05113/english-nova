@@ -22,6 +22,12 @@ public record WordDetailDto(
         String meaningCn,
         @Schema(description = "Example sentence")
         String exampleSentence,
+        @Schema(description = "Corrected English example sentence")
+        String correctedExampleSentence,
+        @Schema(description = "Chinese example sentence")
+        String chineseSentence,
+        @Schema(description = "AI generated example audio url")
+        String exampleAudioUrl,
         @Schema(description = "Category")
         String category,
         @Schema(description = "BNC rank")

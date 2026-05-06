@@ -9,6 +9,9 @@ const BOOST_SAFE_AUDIO_HOSTS = new Set(['api.dictionaryapi.dev'])
 
 export function SearchView() {
   const {
+    token,
+    openAuthModal,
+    openAuthModalIfAllowed,
     searchQuery,
     setSearchQuery,
     searchResult,
@@ -25,6 +28,21 @@ export function SearchView() {
   const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null)
   const audioGainRef = useRef<GainNode | null>(null)
   const searchBoxRef = useRef<HTMLLabelElement | null>(null)
+  const authPromptedRef = useRef(false)
+
+  useEffect(() => {
+    if (token) {
+      authPromptedRef.current = false
+      return
+    }
+
+    if (authPromptedRef.current) {
+      return
+    }
+
+    authPromptedRef.current = true
+    openAuthModalIfAllowed()
+  }, [openAuthModalIfAllowed, token])
 
   useEffect(() => {
     return () => {
@@ -112,15 +130,19 @@ export function SearchView() {
   }
 
   async function playAudio(detail: WordDetail) {
+    await playAudioSource(detail.audioUrl, detail.word)
+  }
+
+  async function playAudioSource(audioUrl: string, fallbackText: string) {
     stopAudioPlayback()
 
-    if (detail.audioUrl) {
+    if (audioUrl) {
       const audio = new Audio()
-      const useBoostedAudio = canUseBoostedAudio(detail.audioUrl)
+      const useBoostedAudio = canUseBoostedAudio(audioUrl)
       if (useBoostedAudio) {
         audio.crossOrigin = 'anonymous'
       }
-      audio.src = detail.audioUrl
+      audio.src = audioUrl
       audio.volume = 1
       audio.preload = 'auto'
       audioRef.current = audio
@@ -132,11 +154,11 @@ export function SearchView() {
           audioGainRef.current = null
         }
       }
-      void audio.play().catch(() => speak(detail.word))
+      void audio.play().catch(() => speak(fallbackText))
       return
     }
 
-    speak(detail.word)
+    speak(fallbackText)
   }
 
   function speak(word: string) {
@@ -159,11 +181,20 @@ export function SearchView() {
             id="global-search-query"
             name="query"
             value={searchQuery}
+            readOnly={!token}
             onChange={(event) => {
+              if (!token) {
+                openAuthModal()
+                return
+              }
               setSearchQuery(event.target.value)
               setShowSuggestions(true)
             }}
             onFocus={() => {
+              if (!token) {
+                openAuthModal()
+                return
+              }
               if (searchQuery.trim()) {
                 setShowSuggestions(true)
               }
@@ -173,6 +204,7 @@ export function SearchView() {
                 setShowSuggestions(false)
               }
             }}
+            placeholder={token ? '' : '登录后可搜索，如：ability / improve'}
           />
           {showSuggestions && searchQuery.trim() && searchSuggestions.length > 0 && (
             <div className="suggestion-list">
@@ -206,6 +238,9 @@ export function SearchView() {
           loading={detailLoading}
           onClose={closeDetail}
           onReplayAudio={() => playAudio(selectedDetail)}
+          onReplayExampleAudio={() =>
+            playAudioSource(selectedDetail.exampleAudioUrl, selectedDetail.correctedExampleSentence)
+          }
         />
       )}
     </>

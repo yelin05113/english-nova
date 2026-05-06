@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nightfall.englishnova.search.mapper.ExampleEnrichmentTaskMapper">
+
+    <insert id="insertTasksForUserWordbook">
+        INSERT IGNORE INTO example_enrichment_tasks(entry_type, entry_id, status)
+        SELECT 'USER', v.id, 'PENDING'
+        FROM user_vocabulary_entries v
+        WHERE v.user_id = #{userId}
+          AND v.wordbook_id = #{wordbookId}
+    </insert>
+
+    <insert id="upsertTask">
+        INSERT INTO example_enrichment_tasks(entry_type, entry_id, status)
+        VALUES(#{entryType}, #{entryId}, 'PENDING')
+        ON DUPLICATE KEY UPDATE
+            status = 'PENDING',
+            attempt_count = 0,
+            last_error = NULL,
+            locked_at = NULL,
+            finished_at = NULL,
+            updated_at = CURRENT_TIMESTAMP
+    </insert>
+
+    <insert id="backfillPublicTasks">
+        INSERT IGNORE INTO example_enrichment_tasks(entry_type, entry_id, status)
+        SELECT 'PUBLIC', v.id, 'PENDING'
+        FROM public_vocabulary_entries v
+        JOIN (
+            SELECT id
+            FROM public_vocabulary_entries
+            ORDER BY
+                CASE WHEN bnc_rank IS NOT NULL AND bnc_rank &gt; 0 THEN bnc_rank ELSE 999999999 END ASC,
+                CASE WHEN frq_rank IS NOT NULL AND frq_rank &gt; 0 THEN frq_rank ELSE 999999999 END ASC,
+                id ASC
+            LIMIT #{publicLimit}
+        ) ranked_public_entries
+            ON ranked_public_entries.id = v.id
+        LEFT JOIN example_enrichment_tasks t
+            ON t.entry_type = 'PUBLIC'
+           AND t.entry_id = v.id
+        WHERE t.id IS NULL
+          AND (
+              v.corrected_english IS NULL OR v.corrected_english = ''
+              OR v.chinese_sentence IS NULL OR v.chinese_sentence = ''
+              OR LOWER(TRIM(v.corrected_english)) REGEXP '^(n|v|vt|vi|adj|adv|prep|pron|conj|art|aux|num|int|det|abbr|phr|pref|suf|modal)\\.'
+              OR LOWER(TRIM(v.corrected_english)) = LOWER(TRIM(v.word))
+              OR TRIM(v.corrected_english) NOT LIKE '% %'
+              OR LOWER(v.corrected_english) NOT LIKE CONCAT('%', LOWER(v.word), '%')
+              OR v.corrected_english NOT REGEXP '[A-Za-z]'
+          )
+        ORDER BY v.id ASC
+        LIMIT #{limit}
+    </insert>
+
+    <insert id="backfillUserTasks">
+        INSERT IGNORE INTO example_enrichment_tasks(entry_type, entry_id, status)
+        SELECT 'USER', v.id, 'PENDING'
+        FROM user_vocabulary_entries v
+        LEFT JOIN example_enrichment_tasks t
+            ON t.entry_type = 'USER'
+           AND t.entry_id = v.id
+        WHERE t.id IS NULL
+          AND (
+              v.corrected_english IS NULL OR v.corrected_english = ''
+              OR v.chinese_sentence IS NULL OR v.chinese_sentence = ''
+          )
+        ORDER BY v.id ASC
+        LIMIT #{limit}
+    </insert>
+
+    <update id="resetPublicIncompleteTasks">
+        UPDATE example_enrichment_tasks
+        SET status = 'PENDING',
+            attempt_count = 0,
+            last_error = NULL,
+            locked_at = NULL,
+            finished_at = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id IN (
+            SELECT task_id
+            FROM (
+                SELECT t.id AS task_id
+                FROM example_enrichment_tasks t
+                JOIN public_vocabulary_entries v
+                  ON v.id = t.entry_id
+                 AND t.entry_type = 'PUBLIC'
+                JOIN (
+                    SELECT id
+                    FROM public_vocabulary_entries
+                    ORDER BY
+                        CASE WHEN bnc_rank IS NOT NULL AND bnc_rank &gt; 0 THEN bnc_rank ELSE 999999999 END ASC,
+                        CASE WHEN frq_rank IS NOT NULL AND frq_rank &gt; 0 THEN frq_rank ELSE 999999999 END ASC,
+                        id ASC
+                    LIMIT #{publicLimit}
+                ) ranked_public_entries
+                  ON ranked_public_entries.id = v.id
+                WHERE t.status IN ('FAILED', 'SKIPPED', 'SUCCEEDED')
+                  AND (
+                      v.corrected_english IS NULL OR v.corrected_english = ''
+                      OR v.chinese_sentence IS NULL OR v.chinese_sentence = ''
+                      OR LOWER(TRIM(v.corrected_english)) REGEXP '^(n|v|vt|vi|adj|adv|prep|pron|conj|art|aux|num|int|det|abbr|phr|pref|suf|modal)\\.'
+                      OR LOWER(TRIM(v.corrected_english)) = LOWER(TRIM(v.word))
+                      OR TRIM(v.corrected_english) NOT LIKE '% %'
+                      OR LOWER(v.corrected_english) NOT LIKE CONCAT('%', LOWER(v.word), '%')
+                      OR v.corrected_english NOT REGEXP '[A-Za-z]'
+                  )
+                ORDER BY t.id ASC
+                LIMIT #{limit}
+            ) pending_task_ids
+        )
+    </update>
+
+    <update id="skipOutOfScopePublicTasks">
+        UPDATE example_enrichment_tasks t
+        JOIN public_vocabulary_entries v
+          ON v.id = t.entry_id
+         AND t.entry_type = 'PUBLIC'
+        LEFT JOIN (
+            SELECT id
+            FROM public_vocabulary_entries
+            ORDER BY
+                CASE WHEN bnc_rank IS NOT NULL AND bnc_rank &gt; 0 THEN bnc_rank ELSE 999999999 END ASC,
+                CASE WHEN frq_rank IS NOT NULL AND frq_rank &gt; 0 THEN frq_rank ELSE 999999999 END ASC,
+                id ASC
+            LIMIT #{publicLimit}
+        ) ranked_public_entries
+          ON ranked_public_entries.id = v.id
+        SET t.status = 'SKIPPED',
+            t.last_error = 'OUT_OF_PUBLIC_TOP_LIMIT',
+            t.locked_at = NULL,
+            t.finished_at = CURRENT_TIMESTAMP,
+            t.updated_at = CURRENT_TIMESTAMP
+        WHERE ranked_public_entries.id IS NULL
+          AND t.status IN ('PENDING', 'RUNNING', 'FAILED')
+          AND (
+              v.corrected_english IS NULL OR v.corrected_english = ''
+              OR v.chinese_sentence IS NULL OR v.chinese_sentence = ''
+              OR LOWER(TRIM(v.corrected_english)) REGEXP '^(n|v|vt|vi|adj|adv|prep|pron|conj|art|aux|num|int|det|abbr|phr|pref|suf|modal)\\.'
+              OR LOWER(TRIM(v.corrected_english)) = LOWER(TRIM(v.word))
+              OR TRIM(v.corrected_english) NOT LIKE '% %'
+              OR LOWER(v.corrected_english) NOT LIKE CONCAT('%', LOWER(v.word), '%')
+              OR v.corrected_english NOT REGEXP '[A-Za-z]'
+          )
+    </update>
+
+    <update id="resetTimedOutRunningTasks">
+        UPDATE example_enrichment_tasks
+        SET status = 'PENDING',
+            locked_at = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE status = 'RUNNING'
+          AND locked_at IS NOT NULL
+          AND locked_at &lt;= TIMESTAMPADD(MINUTE, -#{timeoutMinutes}, CURRENT_TIMESTAMP)
+    </update>
+
+    <select id="findPendingTasks" resultType="com.nightfall.englishnova.search.domain.vo.ExampleEnrichmentTaskVo">
+        SELECT id, entry_type, entry_id, status, attempt_count, last_error
+        FROM example_enrichment_tasks
+        WHERE status IN ('PENDING', 'FAILED')
+          AND attempt_count &lt; #{maxRetries}
+        ORDER BY
+            CASE WHEN status = 'FAILED' THEN 0 ELSE 1 END,
+            updated_at ASC,
+            id ASC
+        LIMIT #{limit}
+    </select>
+
+    <update id="markTaskRunning">
+        UPDATE example_enrichment_tasks
+        SET status = 'RUNNING',
+            attempt_count = attempt_count + 1,
+            last_error = NULL,
+            locked_at = CURRENT_TIMESTAMP,
+            finished_at = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{taskId}
+          AND status IN ('PENDING', 'FAILED')
+          AND attempt_count &lt; #{maxRetries}
+    </update>
+
+    <update id="markTaskSucceeded">
+        UPDATE example_enrichment_tasks
+        SET status = 'SUCCEEDED',
+            last_error = NULL,
+            locked_at = NULL,
+            finished_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{taskId}
+    </update>
+
+    <update id="markTaskSkipped">
+        UPDATE example_enrichment_tasks
+        SET status = 'SKIPPED',
+            last_error = #{lastError},
+            locked_at = NULL,
+            finished_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{taskId}
+    </update>
+
+    <update id="markTaskFailed">
+        UPDATE example_enrichment_tasks
+        SET status = 'FAILED',
+            last_error = #{lastError},
+            locked_at = NULL,
+            finished_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{taskId}
+    </update>
+</mapper>

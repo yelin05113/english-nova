@@ -14,6 +14,9 @@ public class VocabularyCleanupVo {
     private String phonetic;
     private String meaningCn;
     private String exampleSentence;
+    private String correctedEnglish;
+    private String chineseSentence;
+    private String exampleAudioUrl;
     private String audioUrl;
     private String category;
 }

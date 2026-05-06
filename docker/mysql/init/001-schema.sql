@@ -72,13 +72,22 @@ CREATE TABLE `quiz_attempts` (
   `session_id` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` bigint NOT NULL,
   `user_vocabulary_entry_id` bigint DEFAULT NULL,
+  `word_notebook_entry_id` bigint DEFAULT NULL,
   `public_entry_id` bigint DEFAULT NULL,
   `prompt_type` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
   `prompt_text` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `option_a` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `option_a_word` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `option_a_meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `option_b` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `option_b_word` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `option_b_meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `option_c` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `option_c_word` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `option_c_meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `option_d` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `option_d_word` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `option_d_meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `correct_option` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `wrong_submissions` int NOT NULL DEFAULT '0',
   `selected_option` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -86,13 +95,15 @@ CREATE TABLE `quiz_attempts` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `answered_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `fk_quiz_attempts_user_entry` (`user_vocabulary_entry_id`),
-  KEY `fk_quiz_attempts_public_entry` (`public_entry_id`),
   KEY `idx_quiz_attempts_session_answered` (`session_id`,`answered_at`),
   KEY `idx_quiz_attempts_user_created` (`user_id`,`created_at` DESC),
+  KEY `fk_quiz_attempts_user_entry` (`user_vocabulary_entry_id`),
+  KEY `fk_quiz_attempts_word_notebook_entry` (`word_notebook_entry_id`),
+  KEY `fk_quiz_attempts_public_entry` (`public_entry_id`),
   CONSTRAINT `fk_quiz_attempts_public_entry` FOREIGN KEY (`public_entry_id`) REFERENCES `public_vocabulary_entries` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_quiz_attempts_session` FOREIGN KEY (`session_id`) REFERENCES `quiz_sessions` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_quiz_attempts_user_entry` FOREIGN KEY (`user_vocabulary_entry_id`) REFERENCES `user_vocabulary_entries` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_quiz_attempts_word_notebook_entry` FOREIGN KEY (`word_notebook_entry_id`) REFERENCES `word_notebook_entries` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_quiz_attempts_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -145,6 +156,7 @@ CREATE TABLE `users` (
   `username` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
   `email` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
   `avatar_url` varchar(512) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `quiz_option_strategy` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'RANDOM',
   `password_hash` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
   `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ACTIVE',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -162,6 +174,9 @@ CREATE TABLE `public_vocabulary_entries` (
   `phonetic` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
   `meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `example_sentence` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `corrected_english` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `chinese_sentence` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `example_audio_url` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `bnc_rank` int DEFAULT NULL,
   `frq_rank` int DEFAULT NULL,
   `wordfreq_zipf` decimal(4,2) DEFAULT NULL,
@@ -174,6 +189,25 @@ CREATE TABLE `public_vocabulary_entries` (
   UNIQUE KEY `uk_public_vocabulary_word` (`word`),
   KEY `idx_public_vocabulary_word` (`word`)
 ) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `example_enrichment_tasks`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `example_enrichment_tasks` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `entry_type` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `entry_id` bigint NOT NULL,
+  `status` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `attempt_count` int NOT NULL DEFAULT '0',
+  `last_error` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `locked_at` timestamp NULL DEFAULT NULL,
+  `finished_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_example_enrichment_tasks_entry` (`entry_type`,`entry_id`),
+  KEY `idx_example_enrichment_tasks_status` (`status`,`updated_at`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `public_wordbooks`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -258,6 +292,8 @@ CREATE TABLE `user_vocabulary_entries` (
   `phonetic` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
   `meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `example_sentence` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `corrected_english` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `chinese_sentence` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `category` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
   `difficulty` int NOT NULL,
   `audio_url` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
@@ -288,6 +324,56 @@ CREATE TABLE `wordbooks` (
   KEY `idx_wordbooks_user_created` (`user_id`,`created_at` DESC),
   CONSTRAINT `fk_wordbooks_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `word_notebooks`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `word_notebooks` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` bigint NOT NULL,
+  `name` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_word_notebooks_user_updated` (`user_id`,`updated_at` DESC),
+  CONSTRAINT `fk_word_notebooks_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `word_notebook_entries`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `word_notebook_entries` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `word_notebook_id` bigint NOT NULL,
+  `normalized_word` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `word` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `phonetic` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `example_sentence` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `corrected_example_sentence` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `chinese_sentence` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `example_audio_url` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_a` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_a_word` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_a_meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_b` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_b_word` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_b_meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_c` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_c_word` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_c_meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_d` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_d_word` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `option_d_meaning_cn` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `correct_option` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `source_entry_type` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `source_entry_id` bigint DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_word_notebook_entries_word` (`word_notebook_id`,`normalized_word`),
+  KEY `idx_word_notebook_entries_notebook_created` (`word_notebook_id`,`created_at` DESC),
+  CONSTRAINT `fk_word_notebook_entries_notebook` FOREIGN KEY (`word_notebook_id`) REFERENCES `word_notebooks` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 

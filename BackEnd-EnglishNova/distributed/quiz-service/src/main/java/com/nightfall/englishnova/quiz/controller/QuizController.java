@@ -3,20 +3,27 @@ package com.nightfall.englishnova.quiz.controller;
 import com.nightfall.englishnova.quiz.service.QuizService;
 import com.nightfall.englishnova.shared.auth.CurrentUser;
 import com.nightfall.englishnova.shared.auth.RequestUserExtractor;
+import com.nightfall.englishnova.shared.dto.AddWordNotebookEntryRequest;
+import com.nightfall.englishnova.shared.dto.AddWordNotebookEntryResultDto;
 import com.nightfall.englishnova.shared.common.ApiResponse;
 import com.nightfall.englishnova.shared.dto.CreateQuizSessionRequest;
+import com.nightfall.englishnova.shared.dto.CreateWordNotebookRequest;
 import com.nightfall.englishnova.shared.dto.QuizAnswerRequest;
 import com.nightfall.englishnova.shared.dto.QuizAnswerResultDto;
 import com.nightfall.englishnova.shared.dto.QuizSessionStateDto;
 import com.nightfall.englishnova.shared.dto.VocabularyEntryDto;
+import com.nightfall.englishnova.shared.dto.WordNotebookEntryDto;
+import com.nightfall.englishnova.shared.dto.WordNotebookSummaryDto;
 import com.nightfall.englishnova.shared.dto.WordbookProgressDto;
 import com.nightfall.englishnova.shared.dto.WordbookSummaryDto;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -77,6 +84,52 @@ public class QuizController {
         return ApiResponse.success(quizService.getWordbookProgress(user, wordbookId));
     }
 
+    @GetMapping({"/api/word-notebooks", "/word-notebooks"})
+    public ApiResponse<List<WordNotebookSummaryDto>> wordNotebooks(
+            @RequestParam(required = false) String word,
+            HttpServletRequest request
+    ) {
+        CurrentUser user = RequestUserExtractor.require(request);
+        return ApiResponse.success(quizService.listWordNotebooks(user, word));
+    }
+
+    @PostMapping({"/api/word-notebooks", "/word-notebooks"})
+    public ApiResponse<WordNotebookSummaryDto> createWordNotebook(
+            @Valid @RequestBody CreateWordNotebookRequest request,
+            HttpServletRequest servletRequest
+    ) {
+        CurrentUser user = RequestUserExtractor.require(servletRequest);
+        return ApiResponse.success(quizService.createWordNotebook(user, request));
+    }
+
+    @GetMapping({"/api/word-notebooks/{notebookId}/entries", "/word-notebooks/{notebookId}/entries"})
+    public ApiResponse<List<WordNotebookEntryDto>> wordNotebookEntries(
+            @PathVariable long notebookId,
+            HttpServletRequest request
+    ) {
+        CurrentUser user = RequestUserExtractor.require(request);
+        return ApiResponse.success(quizService.listWordNotebookEntries(user, notebookId));
+    }
+
+    @PostMapping({"/api/word-notebooks/{notebookId}/entries", "/word-notebooks/{notebookId}/entries"})
+    public ApiResponse<AddWordNotebookEntryResultDto> addWordNotebookEntry(
+            @PathVariable long notebookId,
+            @Valid @RequestBody AddWordNotebookEntryRequest request,
+            HttpServletRequest servletRequest
+    ) {
+        CurrentUser user = RequestUserExtractor.require(servletRequest);
+        return ApiResponse.success(quizService.addWordNotebookEntry(user, notebookId, request));
+    }
+
+    @DeleteMapping({"/api/word-notebooks/entries", "/word-notebooks/entries"})
+    public ApiResponse<Integer> removeWordNotebookEntries(
+            @RequestParam String word,
+            HttpServletRequest request
+    ) {
+        CurrentUser user = RequestUserExtractor.require(request);
+        return ApiResponse.success(quizService.removeWordNotebookEntries(user, word));
+    }
+
     /**
      * 创建斩词会话。
      *
@@ -104,6 +157,16 @@ public class QuizController {
     public ApiResponse<QuizSessionStateDto> session(@PathVariable String sessionId, HttpServletRequest request) {
         CurrentUser user = RequestUserExtractor.require(request);
         return ApiResponse.success(quizService.getSessionState(user, sessionId));
+    }
+
+    @PostMapping({"/api/quiz/sessions/{sessionId}/questions/{attemptId}/options/refresh", "/quiz/sessions/{sessionId}/questions/{attemptId}/options/refresh"})
+    public ApiResponse<QuizSessionStateDto> refreshQuestionOptions(
+            @PathVariable String sessionId,
+            @PathVariable long attemptId,
+            HttpServletRequest request
+    ) {
+        CurrentUser user = RequestUserExtractor.require(request);
+        return ApiResponse.success(quizService.refreshQuestionOptions(user, sessionId, attemptId));
     }
 
     /**

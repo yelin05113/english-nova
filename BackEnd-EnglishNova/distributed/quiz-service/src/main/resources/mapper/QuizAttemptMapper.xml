@@ -3,17 +3,31 @@
 <mapper namespace="com.nightfall.englishnova.quiz.mapper.QuizAttemptMapper">
     <insert id="insertAttempt">
         INSERT INTO quiz_attempts(
-            session_id, user_id, user_vocabulary_entry_id, public_entry_id, prompt_type, prompt_text,
-            option_a, option_b, option_c, option_d, correct_option, wrong_submissions, created_at
+            session_id, user_id, user_vocabulary_entry_id, word_notebook_entry_id, public_entry_id, prompt_type, prompt_text,
+            option_a, option_a_word, option_a_meaning_cn,
+            option_b, option_b_word, option_b_meaning_cn,
+            option_c, option_c_word, option_c_meaning_cn,
+            option_d, option_d_word, option_d_meaning_cn,
+            correct_option, wrong_submissions, created_at
         )
         VALUES (
-            #{sessionId}, #{userId}, #{userVocabularyEntryId}, #{publicEntryId}, #{promptType}, #{promptText},
-            #{optionA}, #{optionB}, #{optionC}, #{optionD}, #{correctOption}, #{wrongSubmissions}, #{createdAt}
+            #{sessionId}, #{userId}, #{userVocabularyEntryId}, #{wordNotebookEntryId}, #{publicEntryId}, #{promptType}, #{promptText},
+            #{optionA}, #{optionAWord}, #{optionAMeaningCn},
+            #{optionB}, #{optionBWord}, #{optionBMeaningCn},
+            #{optionC}, #{optionCWord}, #{optionCMeaningCn},
+            #{optionD}, #{optionDWord}, #{optionDMeaningCn},
+            #{correctOption}, #{wrongSubmissions}, #{createdAt}
         )
     </insert>
 
     <select id="findByUserSessionAndId" resultType="com.nightfall.englishnova.quiz.domain.vo.AttemptVo">
-        SELECT id, user_vocabulary_entry_id, public_entry_id, correct_option, selected_option, wrong_submissions
+        SELECT id,
+               user_vocabulary_entry_id AS userVocabularyEntryId,
+               word_notebook_entry_id AS wordNotebookEntryId,
+               public_entry_id AS publicEntryId,
+               correct_option AS correctOption,
+               selected_option AS selectedOption,
+               wrong_submissions AS wrongSubmissions
         FROM quiz_attempts
         WHERE id = #{attemptId} AND session_id = #{sessionId} AND user_id = #{userId}
         LIMIT 1
@@ -22,25 +36,58 @@
     <select id="loadCurrentQuestion" resultType="com.nightfall.englishnova.quiz.domain.vo.QuestionVo">
         SELECT
             qa.id,
+            qa.user_vocabulary_entry_id AS userVocabularyEntryId,
+            qa.word_notebook_entry_id AS wordNotebookEntryId,
+            qa.public_entry_id AS publicEntryId,
             qa.prompt_type AS promptType,
             qa.prompt_text AS promptText,
             CASE
                 WHEN qa.prompt_type = 'CN_TO_EN' THEN qa.correct_option
                 ELSE qa.prompt_text
             END AS currentWord,
-            COALESCE(pv.phonetic, uv.phonetic, '') AS phonetic,
+            COALESCE(pv.phonetic, uv.phonetic, wne.phonetic, '') AS phonetic,
             COALESCE(pv.audio_url, uv.audio_url, '') AS audioUrl,
             qa.option_a AS optionA,
+            qa.option_a_word AS optionAWord,
+            qa.option_a_meaning_cn AS optionAMeaningCn,
             qa.option_b AS optionB,
+            qa.option_b_word AS optionBWord,
+            qa.option_b_meaning_cn AS optionBMeaningCn,
             qa.option_c AS optionC,
-            qa.option_d AS optionD
+            qa.option_c_word AS optionCWord,
+            qa.option_c_meaning_cn AS optionCMeaningCn,
+            qa.option_d AS optionD,
+            qa.option_d_word AS optionDWord,
+            qa.option_d_meaning_cn AS optionDMeaningCn,
+            qa.correct_option AS correctOption
         FROM quiz_attempts qa
         LEFT JOIN public_vocabulary_entries pv ON pv.id = qa.public_entry_id
         LEFT JOIN user_vocabulary_entries uv ON uv.id = qa.user_vocabulary_entry_id
+        LEFT JOIN word_notebook_entries wne ON wne.id = qa.word_notebook_entry_id
         WHERE qa.session_id = #{sessionId} AND qa.selected_option IS NULL
         ORDER BY qa.id DESC
         LIMIT 1
     </select>
+
+    <update id="updateOptions">
+        UPDATE quiz_attempts
+        SET prompt_text = #{promptText},
+            option_a = #{optionA},
+            option_a_word = #{optionAWord},
+            option_a_meaning_cn = #{optionAMeaningCn},
+            option_b = #{optionB},
+            option_b_word = #{optionBWord},
+            option_b_meaning_cn = #{optionBMeaningCn},
+            option_c = #{optionC},
+            option_c_word = #{optionCWord},
+            option_c_meaning_cn = #{optionCMeaningCn},
+            option_d = #{optionD},
+            option_d_word = #{optionDWord},
+            option_d_meaning_cn = #{optionDMeaningCn},
+            correct_option = #{correctOption}
+        WHERE id = #{attemptId}
+          AND selected_option IS NULL
+    </update>
 
     <update id="recordWrongSubmission">
         UPDATE quiz_attempts

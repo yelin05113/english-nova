@@ -9,6 +9,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -34,9 +35,11 @@ public class GatewayJwtFilter implements GlobalFilter, Ordered {
             "/upload/images/",
             "/actuator/health"
     );
-    private static final List<String> OPTIONAL_TOKEN_PATHS = List.of(
+    private static final List<String> OPTIONAL_GET_PATHS = List.of(
             "/api/search/",
-            "/search/"
+            "/search/",
+            "/api/public-wordbooks",
+            "/public-wordbooks"
     );
 
     private final SecretKey secretKey;
@@ -54,7 +57,7 @@ public class GatewayJwtFilter implements GlobalFilter, Ordered {
 
         String token = resolveToken(exchange.getRequest().getHeaders());
         if (token == null || token.isBlank()) {
-            if (isOptional(path)) {
+            if (isOptional(exchange.getRequest())) {
                 return chain.filter(exchange);
             }
             return unauthorized(exchange, "请先登录");
@@ -92,8 +95,13 @@ public class GatewayJwtFilter implements GlobalFilter, Ordered {
         return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
     }
 
-    private boolean isOptional(String path) {
-        return OPTIONAL_TOKEN_PATHS.stream().anyMatch(path::startsWith);
+    private boolean isOptional(ServerHttpRequest request) {
+        if (request.getMethod() != HttpMethod.GET) {
+            return false;
+        }
+
+        String path = request.getURI().getPath();
+        return OPTIONAL_GET_PATHS.stream().anyMatch(path::startsWith);
     }
 
     private String resolveToken(HttpHeaders headers) {

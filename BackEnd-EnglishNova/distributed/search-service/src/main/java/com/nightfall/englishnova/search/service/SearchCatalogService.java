@@ -19,6 +19,8 @@ public interface SearchCatalogService {
 
     AudioProxyPayload getAudioProxy(String sourceUrl);
 
+    AudioProxyPayload getExampleAudio(long entryId);
+
     WordSearchResponseDto searchVocabulary(String keyword, CurrentUser user, Long wordbookId);
 
     List<SearchSuggestionDto> searchSuggestions(String keyword, CurrentUser user, Long wordbookId);
