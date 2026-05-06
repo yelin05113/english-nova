@@ -38,6 +38,12 @@ lerna-debug.log*
 BackEnd-EnglishNova/distributed/search-service/application-local.yml
 BackEnd-EnglishNova/distributed/search-service/application-local.yaml
 BackEnd-EnglishNova/distributed/search-service/application-local.properties
+BackEnd-EnglishNova/distributed/application-local.yml
+BackEnd-EnglishNova/distributed/application-local.yaml
+BackEnd-EnglishNova/distributed/application-local.properties
+BackEnd-EnglishNova/distributed/**/src/main/resources/application-local.yml
+BackEnd-EnglishNova/distributed/**/src/main/resources/application-local.yaml
+BackEnd-EnglishNova/distributed/**/src/main/resources/application-local.properties
 BackEnd-EnglishNova/distributed/search-service/src/main/resources/application-local.yml
 BackEnd-EnglishNova/distributed/search-service/src/main/resources/application-local.yaml
 BackEnd-EnglishNova/distributed/search-service/src/main/resources/application-local.properties

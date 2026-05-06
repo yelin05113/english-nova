@@ -2,12 +2,28 @@ spring:
   application:
     name: system-service
   config:
-    import: optional:nacos:${spring.application.name}.yaml
+    import:
+      - optional:classpath:application-local.yml
+      - optional:classpath:application-local.yaml
+      - optional:classpath:application-local.properties
+      - optional:nacos:${spring.application.name}.yaml
+      - optional:file:./application-local.yml
+      - optional:file:./application-local.yaml
+      - optional:file:./application-local.properties
+      - optional:file:./distributed/application-local.yml
+      - optional:file:./distributed/application-local.yaml
+      - optional:file:./distributed/application-local.properties
+      - optional:file:./BackEnd-EnglishNova/distributed/application-local.yml
+      - optional:file:./BackEnd-EnglishNova/distributed/application-local.yaml
+      - optional:file:./BackEnd-EnglishNova/distributed/application-local.properties
+      - optional:file:../application-local.yml
+      - optional:file:../application-local.yaml
+      - optional:file:../application-local.properties
   cloud:
     nacos:
       server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
-      username: ${NACOS_USERNAME:nacos}
-      password: ${NACOS_PASSWORD:nacos}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
       discovery:
         namespace: ${NACOS_NAMESPACE:public}
         group: ${NACOS_GROUP:DEFAULT_GROUP}

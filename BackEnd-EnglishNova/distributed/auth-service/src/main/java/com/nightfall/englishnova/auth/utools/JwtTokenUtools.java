@@ -4,21 +4,19 @@ import java.nio.charset.StandardCharsets;
 
 public final class JwtTokenUtools {
 
-    private static final String DEFAULT_SECRET = "english-nova-local-jwt-secret-must-be-32-char";
     private static final int MIN_SECRET_LENGTH = 32;
 
     private JwtTokenUtools() {
     }
 
     public static byte[] normalizeSecret(String secret) {
-        String raw = secret == null ? DEFAULT_SECRET : secret.trim();
-        if (raw.length() >= MIN_SECRET_LENGTH) {
-            return raw.getBytes(StandardCharsets.UTF_8);
+        String raw = secret == null ? "" : secret.trim();
+        if (raw.isEmpty()) {
+            throw new IllegalStateException("JWT_SECRET must be configured.");
         }
-        StringBuilder builder = new StringBuilder(raw);
-        while (builder.length() < MIN_SECRET_LENGTH) {
-            builder.append('0');
+        if (raw.length() < MIN_SECRET_LENGTH) {
+            throw new IllegalStateException("JWT_SECRET must be at least 32 characters.");
         }
-        return builder.toString().getBytes(StandardCharsets.UTF_8);
+        return raw.getBytes(StandardCharsets.UTF_8);
     }
 }
