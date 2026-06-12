@@ -1,0 +1,8 @@
+**/target
+**/.mvn
+.git
+*.log
+hs_err_pid*.log
+application-local.properties
+application-local.yml
+application-local.yaml

@@ -7,12 +7,11 @@ CREATE TABLE IF NOT EXISTS `public_wordbooks` (
   `source_url` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `license_name` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
   `license_url` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tag` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
   `word_count` int NOT NULL DEFAULT '0',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_public_wordbooks_tag` (`tag`)
+  UNIQUE KEY `uk_public_wordbooks_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `public_wordbook_entries` (

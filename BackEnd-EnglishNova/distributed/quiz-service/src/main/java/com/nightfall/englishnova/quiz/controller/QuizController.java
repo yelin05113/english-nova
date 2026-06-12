@@ -84,7 +84,12 @@ public class QuizController {
         return ApiResponse.success(quizService.getWordbookProgress(user, wordbookId));
     }
 
-    @GetMapping({"/api/word-notebooks", "/word-notebooks"})
+    @GetMapping({
+            "/api/word-notebooks",
+            "/word-notebooks",
+            "/api/word-notebooks/list",
+            "/word-notebooks/list"
+    })
     public ApiResponse<List<WordNotebookSummaryDto>> wordNotebooks(
             @RequestParam(required = false) String word,
             HttpServletRequest request
@@ -93,7 +98,12 @@ public class QuizController {
         return ApiResponse.success(quizService.listWordNotebooks(user, word));
     }
 
-    @PostMapping({"/api/word-notebooks", "/word-notebooks"})
+    @PostMapping({
+            "/api/word-notebooks",
+            "/word-notebooks",
+            "/api/word-notebooks/create",
+            "/word-notebooks/create"
+    })
     public ApiResponse<WordNotebookSummaryDto> createWordNotebook(
             @Valid @RequestBody CreateWordNotebookRequest request,
             HttpServletRequest servletRequest

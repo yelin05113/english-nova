@@ -27,7 +27,7 @@ spring:
             - id: public-wordbooks
               uri: lb://search-service
               predicates:
-                - Path=/api/public-wordbooks/**,/public-wordbooks/**
+                - Path=/api/public-wordbooks,/public-wordbooks,/api/public-wordbooks/**,/public-wordbooks/**
             - id: import-service
               uri: lb://import-service
               predicates:
@@ -35,14 +35,14 @@ spring:
             - id: quiz-service-wordbooks
               uri: lb://quiz-service
               predicates:
-                - Path=/api/wordbooks/**,/wordbooks/**,/api/word-notebooks/**,/word-notebooks/**
+                - Path=/api/wordbooks,/wordbooks,/api/wordbooks/**,/wordbooks/**,/api/word-notebooks,/word-notebooks,/api/word-notebooks/**,/word-notebooks/**
             - id: quiz-service
               uri: lb://quiz-service
               predicates:
                 - Path=/api/quiz/**,/quiz/**
 
 server:
-  port: ${GATEWAY_SERVICE_PORT:8087}
+  port: ${GATEWAY_SERVICE_PORT:8080}
 
 management:
   endpoints:

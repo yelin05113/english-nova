@@ -77,7 +77,6 @@ export interface PublicWordbook {
   sourceUrl: string
   licenseName: string
   licenseUrl: string
-  tag: string
   wordCount: number
   subscribed: boolean
   completedCount: number

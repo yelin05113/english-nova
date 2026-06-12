@@ -46,6 +46,14 @@
         LIMIT 1
     </select>
 
+    <select id="findJobByIdAndCreator" resultType="com.nightfall.englishnova.search.domain.vo.PublicCatalogImportJobVo">
+        SELECT <include refid="jobColumns"/>
+        FROM public_catalog_import_jobs
+        WHERE id = #{jobId}
+          AND created_by_user_id = #{createdByUserId}
+        LIMIT 1
+    </select>
+
     <select id="findNextRunnableJob" resultType="com.nightfall.englishnova.search.domain.vo.PublicCatalogImportJobVo">
         SELECT <include refid="jobColumns"/>
         FROM public_catalog_import_jobs

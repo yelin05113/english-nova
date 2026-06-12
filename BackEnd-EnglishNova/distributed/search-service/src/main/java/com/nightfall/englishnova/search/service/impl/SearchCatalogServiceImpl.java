@@ -151,6 +151,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     private final HttpClient httpClient;
     private final String elasticsearchBaseUrl;
     private final int publicCatalogImportConcurrency;
+    private final boolean rebuildOnStartup;
     private final AtomicBoolean importWorkerRunning = new AtomicBoolean(false);
     private final AtomicBoolean publicAudioBackfillRunning = new AtomicBoolean(false);
     private final AtomicBoolean exampleEnrichmentWorkerRunning = new AtomicBoolean(false);
@@ -168,7 +169,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             ExampleAudioStorageService exampleAudioStorageService,
             ObjectMapper objectMapper,
             @Value("${spring.elasticsearch.uris}") String elasticsearchBaseUrl,
-            @Value("${english-nova.search.public-catalog-import-concurrency:4}") int publicCatalogImportConcurrency
+            @Value("${english-nova.search.public-catalog-import-concurrency:4}") int publicCatalogImportConcurrency,
+            @Value("${english-nova.search.rebuild-on-startup:true}") boolean rebuildOnStartup
     ) {
         this.searchVocabularyMapper = searchVocabularyMapper;
         this.searchWordbookMapper = searchWordbookMapper;
@@ -184,6 +186,7 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 : elasticsearchBaseUrl;
         this.httpClient = HttpClient.newHttpClient();
         this.publicCatalogImportConcurrency = Math.max(1, publicCatalogImportConcurrency);
+        this.rebuildOnStartup = rebuildOnStartup;
     }
 
     /**
@@ -335,7 +338,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                         row.getSourceUrl(),
                         UserFacingTextNormalizer.normalizeDisplayText(row.getLicenseName()),
                         row.getLicenseUrl(),
-                        row.getTag(),
                         row.getWordCount(),
                         row.isSubscribed(),
                         row.getCompletedCount(),
@@ -451,7 +453,6 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 row.getSourceUrl(),
                 UserFacingTextNormalizer.normalizeDisplayText(row.getLicenseName()),
                 row.getLicenseUrl(),
-                row.getTag(),
                 row.getWordCount(),
                 row.isSubscribed(),
                 row.getCompletedCount(),
@@ -504,15 +505,15 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         if (!words.isEmpty()) {
             publicCatalogImportJobMapper.insertItems(job.getId(), words);
         }
-        return requireImportJob(job.getId());
+        return requireOwnedImportJob(job.getId(), user.id());
     }
 
-    public PublicCatalogImportJobDto getPublicCatalogImportJob(long jobId) {
-        return requireImportJob(jobId);
+    public PublicCatalogImportJobDto getPublicCatalogImportJob(long jobId, CurrentUser user) {
+        return requireOwnedImportJob(jobId, user.id());
     }
 
-    public PublicCatalogImportJobDto retryFailedPublicCatalogImportJob(long jobId) {
-        PublicCatalogImportJobDto job = requireImportJob(jobId);
+    public PublicCatalogImportJobDto retryFailedPublicCatalogImportJob(long jobId, CurrentUser user) {
+        PublicCatalogImportJobDto job = requireOwnedImportJob(jobId, user.id());
         if (JOB_STATUS_CANCELLED.equals(job.status())) {
             throw new ForbiddenException("Cancelled public catalog import jobs cannot be retried");
         }
@@ -522,13 +523,13 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         if ("FAILED".equals(row.getStatus()) || "COMPLETED".equals(row.getStatus())) {
             publicCatalogImportJobMapper.startJob(job.id());
         }
-        return requireImportJob(job.id());
+        return requireOwnedImportJob(job.id(), user.id());
     }
 
-    public PublicCatalogImportJobDto cancelPublicCatalogImportJob(long jobId) {
-        PublicCatalogImportJobDto job = requireImportJob(jobId);
+    public PublicCatalogImportJobDto cancelPublicCatalogImportJob(long jobId, CurrentUser user) {
+        PublicCatalogImportJobDto job = requireOwnedImportJob(jobId, user.id());
         publicCatalogImportJobMapper.cancelJob(job.id());
-        return requireImportJob(job.id());
+        return requireOwnedImportJob(job.id(), user.id());
     }
 
     @Scheduled(fixedDelayString = "${english-nova.search.public-catalog-import-worker-delay-ms:5000}")
@@ -588,7 +589,18 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             return;
         }
         try {
-            if (!openAiExampleEnrichmentClient.isTextConfigured()) {
+            boolean textOnlyMode = exampleEnrichmentProperties.resolvedTextOnlyMode();
+            boolean audioOnlyMode = exampleEnrichmentProperties.resolvedAudioOnlyMode();
+            if (textOnlyMode) {
+                if (!openAiExampleEnrichmentClient.isTextConfigured()) {
+                    return;
+                }
+            } else if (audioOnlyMode) {
+                if (!exampleEnrichmentProperties.resolvedExampleAudioEnabled()
+                        || !openAiExampleEnrichmentClient.isSpeechConfigured()) {
+                    return;
+                }
+            } else if (!openAiExampleEnrichmentClient.isTextConfigured()) {
                 return;
             }
 
@@ -597,7 +609,21 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             int claimLimit = Math.max(batchSize, batchSize * workerConcurrency);
             int maxRetries = exampleEnrichmentProperties.resolvedMaxRetries();
             exampleEnrichmentTaskMapper.resetTimedOutRunningTasks(ENRICHMENT_RUNNING_TIMEOUT_MINUTES);
-            List<ExampleEnrichmentTaskVo> candidates = exampleEnrichmentTaskMapper.findPendingTasks(
+            List<ExampleEnrichmentTaskVo> candidates = textOnlyMode
+                    ? exampleEnrichmentTaskMapper.findPendingTextOnlyTasks(
+                    claimLimit,
+                    maxRetries,
+                    exampleEnrichmentProperties.resolvedPublicLimit()
+            )
+                    : audioOnlyMode
+                    ? exampleEnrichmentTaskMapper.findPendingAudioOnlyTasks(
+                    claimLimit,
+                    maxRetries,
+                    exampleEnrichmentProperties.resolvedAudioScopeField(),
+                    exampleEnrichmentProperties.resolvedAudioScopeOrder(),
+                    exampleEnrichmentProperties.resolvedAudioScopeLimit()
+            )
+                    : exampleEnrichmentTaskMapper.findPendingTasks(
                     claimLimit,
                     maxRetries
             );
@@ -623,7 +649,15 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 claimedTasks.add(claimedTask);
                 if (PUBLIC_ENTRY_TYPE.equalsIgnoreCase(task.getEntryType())) {
                     PublicTaskContext context = new PublicTaskContext(claimedTask, entry);
-                    if (needsPublicExampleText(entry)) {
+                    if (textOnlyMode) {
+                        if (needsPublicExampleText(entry)) {
+                            publicTextTasks.add(context);
+                        } else {
+                            exampleEnrichmentTaskMapper.markTaskSkipped(task.getId(), "TEXT_ONLY_TEXT_NOT_REQUIRED");
+                        }
+                    } else if (audioOnlyMode && needsPublicExampleText(entry)) {
+                        exampleEnrichmentTaskMapper.markTaskSkipped(task.getId(), "AUDIO_ONLY_TEXT_REQUIRED");
+                    } else if (needsPublicExampleText(entry)) {
                         publicTextTasks.add(context);
                     } else if (needsPublicExampleAudio(entry)) {
                         publicAudioOnlyTasks.add(context);
@@ -641,12 +675,16 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 userTextTasks.add(new UserTaskContext(claimedTask, entry, originalEnglish));
             }
 
-            Map<String, PublicEnrichmentOutcome> publicOutcomeByKey = processPublicTextTasks(
+            Map<String, PublicEnrichmentOutcome> publicOutcomeByKey = audioOnlyMode
+                    ? Map.of()
+                    : processPublicTextTasks(
                     publicTextTasks,
                     batchSize,
                     workerConcurrency
             );
-            Map<String, UserEnrichmentOutcome> userOutcomeByKey = processUserTextTasks(
+            Map<String, UserEnrichmentOutcome> userOutcomeByKey = audioOnlyMode
+                    ? Map.of()
+                    : processUserTextTasks(
                     userTextTasks,
                     batchSize,
                     workerConcurrency
@@ -662,21 +700,23 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                     elasticsearchAvailable
             ) || indexChanged;
 
-            for (UserTaskContext context : userTextTasks) {
-                String taskKey = entryTaskKey(context.task().entryType(), context.task().entryId());
-                UserEnrichmentOutcome outcome = userOutcomeByKey.get(taskKey);
-                if (outcome == null) {
-                    exampleEnrichmentTaskMapper.markTaskFailed(context.task().taskId(), "OPENAI_RESULT_MISSING");
-                    continue;
+            if (!audioOnlyMode) {
+                for (UserTaskContext context : userTextTasks) {
+                    String taskKey = entryTaskKey(context.task().entryType(), context.task().entryId());
+                    UserEnrichmentOutcome outcome = userOutcomeByKey.get(taskKey);
+                    if (outcome == null) {
+                        exampleEnrichmentTaskMapper.markTaskFailed(context.task().taskId(), "OPENAI_RESULT_MISSING");
+                        continue;
+                    }
+                    if (!outcome.success()) {
+                        exampleEnrichmentTaskMapper.markTaskFailed(context.task().taskId(), outcome.errorMessage());
+                        continue;
+                    }
+                    updateExampleEnrichment(context.task().entryType(), context.task().entryId(), outcome.correctedEnglish(), outcome.chineseSentence(), "");
+                    exampleEnrichmentTaskMapper.markTaskSucceeded(context.task().taskId());
+                    syncEntryToIndex(context.task().entryType(), context.task().entryId(), elasticsearchAvailable);
+                    indexChanged = indexChanged || elasticsearchAvailable;
                 }
-                if (!outcome.success()) {
-                    exampleEnrichmentTaskMapper.markTaskFailed(context.task().taskId(), outcome.errorMessage());
-                    continue;
-                }
-                updateExampleEnrichment(context.task().entryType(), context.task().entryId(), outcome.correctedEnglish(), outcome.chineseSentence(), "");
-                exampleEnrichmentTaskMapper.markTaskSucceeded(context.task().taskId());
-                syncEntryToIndex(context.task().entryType(), context.task().entryId(), elasticsearchAvailable);
-                indexChanged = indexChanged || elasticsearchAvailable;
             }
 
             if (indexChanged) {
@@ -693,6 +733,9 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             return;
         }
         try {
+            if (exampleEnrichmentProperties.resolvedAudioOnlyMode() || exampleEnrichmentProperties.resolvedTextOnlyMode()) {
+                return;
+            }
             int inserted = 0;
             int publicLimit = exampleEnrichmentProperties.resolvedPublicLimit();
             inserted += exampleEnrichmentTaskMapper.skipOutOfScopePublicTasks(publicLimit);
@@ -813,6 +856,14 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         return toImportJobDto(row);
     }
 
+    private PublicCatalogImportJobDto requireOwnedImportJob(long jobId, long userId) {
+        PublicCatalogImportJobVo row = publicCatalogImportJobMapper.findJobByIdAndCreator(jobId, userId);
+        if (row == null) {
+            throw new NotFoundException("Public catalog import job not found");
+        }
+        return toImportJobDto(row);
+    }
+
     private PublicCatalogImportJobDto toImportJobDto(PublicCatalogImportJobVo row) {
         return new PublicCatalogImportJobDto(
                 row.getId(),
@@ -844,10 +895,34 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         return message.length() > 240 ? message.substring(0, 240) : message;
     }
 
+    private long elapsedMillis(long startedAt) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+    }
+
     /**
      * 搴旂敤鍚姩鍚庨噸寤烘暣濂楁悳绱㈢储寮曘€?     */
     @EventListener(ApplicationReadyEvent.class)
+    public void logEnrichmentWorkerMode() {
+        boolean textOnlyMode = exampleEnrichmentProperties.resolvedTextOnlyMode();
+        boolean audioOnlyMode = exampleEnrichmentProperties.resolvedAudioOnlyMode();
+        log.info("Text-only mode: {}", textOnlyMode);
+        log.info("Audio-only mode: {}", audioOnlyMode);
+        if (audioOnlyMode) {
+            log.info(
+                    "Audio scope: {} {} limit={}",
+                    exampleEnrichmentProperties.resolvedAudioScopeField(),
+                    exampleEnrichmentProperties.resolvedAudioScopeOrder(),
+                    exampleEnrichmentProperties.resolvedAudioScopeLimit()
+            );
+        }
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
     public void rebuildAll() {
+        if (!rebuildOnStartup) {
+            log.info("Skipping Elasticsearch rebuild on startup because english-nova.search.rebuild-on-startup=false");
+            return;
+        }
         int updatedRows = normalizeDatabaseContent();
         if (updatedRows > 0) {
             log.info("Normalized {} database rows to simplified Chinese before rebuilding Elasticsearch", updatedRows);
@@ -1895,8 +1970,51 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
         if (normalizedWord.contains(" ")) {
             return normalizedSentence.contains(normalizedWord);
         }
-        Pattern targetPattern = Pattern.compile("(?i)(^|[^a-z])" + Pattern.quote(normalizedWord) + "([^a-z]|$)");
-        return targetPattern.matcher(sentence).find();
+        for (String candidate : targetWordCandidates(normalizedWord)) {
+            Pattern targetPattern = Pattern.compile("(?i)(^|[^a-z])" + Pattern.quote(candidate) + "([^a-z]|$)");
+            if (targetPattern.matcher(sentence).find()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Set<String> targetWordCandidates(String normalizedWord) {
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        candidates.add(normalizedWord);
+        candidates.add(normalizedWord + "s");
+        candidates.add(normalizedWord + "es");
+
+        if (normalizedWord.endsWith("e") && normalizedWord.length() > 1) {
+            String stem = normalizedWord.substring(0, normalizedWord.length() - 1);
+            candidates.add(stem + "ing");
+            candidates.add(stem + "ed");
+        } else {
+            candidates.add(normalizedWord + "ing");
+            candidates.add(normalizedWord + "ed");
+        }
+        candidates.add(normalizedWord + "d");
+
+        if (normalizedWord.endsWith("y")
+                && normalizedWord.length() > 1
+                && !isVowel(normalizedWord.charAt(normalizedWord.length() - 2))) {
+            String stem = normalizedWord.substring(0, normalizedWord.length() - 1);
+            candidates.add(stem + "ies");
+            candidates.add(stem + "ied");
+        }
+
+        if (normalizedWord.endsWith("f") && normalizedWord.length() > 1) {
+            candidates.add(normalizedWord.substring(0, normalizedWord.length() - 1) + "ves");
+        }
+        if (normalizedWord.endsWith("fe") && normalizedWord.length() > 2) {
+            candidates.add(normalizedWord.substring(0, normalizedWord.length() - 2) + "ves");
+        }
+
+        return candidates;
+    }
+
+    private boolean isVowel(char current) {
+        return current == 'a' || current == 'e' || current == 'i' || current == 'o' || current == 'u';
     }
 
     private boolean hasCleanText(String value) {
@@ -2125,7 +2243,20 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
             for (List<PublicTaskContext> batch : partitionList(tasks, batchSize)) {
                 jobs.add(() -> processPublicTextBatch(batch));
             }
-            return mergePublicOutcomes(tasks, executor.invokeAll(jobs));
+            log.info(
+                    "Submitting {} public text batches for {} tasks (batchSize={}, workerConcurrency={})",
+                    jobs.size(),
+                    tasks.size(),
+                    batchSize,
+                    workerConcurrency
+            );
+            List<Future<Map<String, PublicEnrichmentOutcome>>> futures = executor.invokeAll(jobs);
+            log.info(
+                    "All public text batch futures completed for {} tasks; merging {} futures",
+                    tasks.size(),
+                    futures.size()
+            );
+            return mergePublicOutcomes(tasks, futures);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             return failurePublicOutcomes(tasks, "OpenAI public example generation interrupted");
@@ -2168,13 +2299,30 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                         UserFacingTextNormalizer.normalizeDisplayText(context.entry().getExampleSentence())
                 ))
                 .toList();
+        List<Long> entryIds = tasks.stream()
+                .map(context -> context.task().entryId())
+                .toList();
+        long startedAt = System.nanoTime();
+        String stage = "prepare-request";
+        log.info("Public text batch start: size={}, entryIds={}", tasks.size(), entryIds);
         try {
             Map<String, PublicEnrichmentOutcome> outcomeByKey = new HashMap<>();
             Map<String, PublicTaskContext> contextByKey = new HashMap<>();
             for (PublicTaskContext context : tasks) {
                 contextByKey.put(entryTaskKey(context.task().entryType(), context.task().entryId()), context);
             }
-            for (OpenAiExampleEnrichmentClient.PublicExampleGenerationResult result : openAiExampleEnrichmentClient.generatePublicExamples(requests)) {
+            stage = "model-call";
+            List<OpenAiExampleEnrichmentClient.PublicExampleGenerationResult> results =
+                    openAiExampleEnrichmentClient.generatePublicExamples(requests);
+            log.info(
+                    "Public text batch model call completed: size={}, entryIds={}, resultCount={}, elapsedMs={}",
+                    tasks.size(),
+                    entryIds,
+                    results.size(),
+                    elapsedMillis(startedAt)
+            );
+            stage = "result-validation";
+            for (OpenAiExampleEnrichmentClient.PublicExampleGenerationResult result : results) {
                 String correctedEnglish = truncateText(
                         UserFacingTextNormalizer.normalizeDisplayText(result.correctedEnglish()),
                         255
@@ -2191,8 +2339,22 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
                 }
                 outcomeByKey.put(entryTaskKey(result.entryType(), result.entryId()), PublicEnrichmentOutcome.success(correctedEnglish, chineseSentence));
             }
+            log.info(
+                    "Public text batch validated: size={}, entryIds={}, outcomeCount={}, elapsedMs={}",
+                    tasks.size(),
+                    entryIds,
+                    outcomeByKey.size(),
+                    elapsedMillis(startedAt)
+            );
             return outcomeByKey;
         } catch (Exception exception) {
+            log.warn(
+                    "Public text batch failed during stage={} for entryIds={} after {} ms",
+                    stage,
+                    entryIds,
+                    elapsedMillis(startedAt),
+                    exception
+            );
             return failurePublicOutcomes(tasks, normalizeErrorMessage(exception));
         }
     }

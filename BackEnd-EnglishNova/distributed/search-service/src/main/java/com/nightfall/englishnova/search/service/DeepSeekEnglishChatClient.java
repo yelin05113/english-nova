@@ -285,7 +285,10 @@ public class DeepSeekEnglishChatClient {
         }
         String baseUrl = openai.baseUrl() == null ? "" : openai.baseUrl().toLowerCase();
         String model = openai.model() == null ? "" : openai.model().toLowerCase();
-        return baseUrl.contains("deepseek") || model.startsWith("deepseek");
+        return baseUrl.contains("deepseek")
+                || baseUrl.contains("xiaomimimo.com")
+                || model.startsWith("deepseek")
+                || model.startsWith("mimo-");
     }
 
     private boolean hasText(String value) {

@@ -1,8 +1,144 @@
+name: english-nova
+
+x-backend-build: &backend-build
+  context: ./BackEnd-EnglishNova/distributed
+  dockerfile: Dockerfile
+
+x-backend-environment: &backend-environment
+  MYSQL_HOST: mysql
+  MYSQL_PORT: 3306
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: 5672
+  ELASTICSEARCH_HOST: elasticsearch
+  ELASTICSEARCH_PORT: 9200
+  NACOS_SERVER_ADDR: nacos:8848
+  ENGLISH_NOVA_ENRICHMENT_EXAMPLE_AUDIO_DIR: /app/upload/example-audio
+
+x-backend-env: &backend-env
+  env_file:
+    - ./.env
+  environment:
+    <<: *backend-environment
+  restart: unless-stopped
+  depends_on:
+    mysql:
+      condition: service_healthy
+    nacos:
+      condition: service_started
+    redis:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+    elasticsearch:
+      condition: service_started
+
 services:
+  frontend:
+    build:
+      context: ./FrontEnd-EnglishNova
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      gateway-service:
+        condition: service_started
+    restart: unless-stopped
+
+  gateway-service:
+    <<: *backend-env
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_NAME: gateway-service
+    environment:
+      <<: *backend-environment
+      GATEWAY_SERVICE_PORT: ${GATEWAY_CONTAINER_PORT:-8080}
+    ports:
+      - "${GATEWAY_HOST_PORT:-8087}:${GATEWAY_CONTAINER_PORT:-8080}"
+    depends_on:
+      nacos:
+        condition: service_started
+
+  auth-service:
+    <<: *backend-env
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_NAME: auth-service
+    environment:
+      <<: *backend-environment
+      AUTH_SERVICE_PORT: 8085
+    ports:
+      - "${AUTH_SERVICE_PORT:-8085}:8085"
+    volumes:
+      - ./upload:/app/upload
+
+  system-service:
+    <<: *backend-env
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_NAME: system-service
+    environment:
+      <<: *backend-environment
+      SYSTEM_SERVICE_PORT: 8081
+    ports:
+      - "${SYSTEM_SERVICE_PORT:-8081}:8081"
+
+  study-service:
+    <<: *backend-env
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_NAME: study-service
+    environment:
+      <<: *backend-environment
+      STUDY_SERVICE_PORT: 8082
+    ports:
+      - "${STUDY_SERVICE_PORT:-8082}:8082"
+
+  search-service:
+    <<: *backend-env
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_NAME: search-service
+    environment:
+      <<: *backend-environment
+      SEARCH_SERVICE_PORT: 8083
+    ports:
+      - "${SEARCH_SERVICE_PORT:-8083}:8083"
+    volumes:
+      - ./upload:/app/upload
+
+  import-service:
+    <<: *backend-env
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_NAME: import-service
+    environment:
+      <<: *backend-environment
+      IMPORT_SERVICE_PORT: 8084
+    ports:
+      - "${IMPORT_SERVICE_PORT:-8084}:8084"
+
+  quiz-service:
+    <<: *backend-env
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_NAME: quiz-service
+    environment:
+      <<: *backend-environment
+      QUIZ_SERVICE_PORT: 8086
+    ports:
+      - "${QUIZ_SERVICE_PORT:-8086}:8086"
+
   mysql:
     image: mysql:8.4
-    env_file:
-      - ./.env
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-english_nova}
@@ -12,7 +148,7 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "${MYSQL_PORT:-4407}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -27,8 +163,6 @@ services:
 
   nacos:
     image: nacos/nacos-server:v3.1.1
-    env_file:
-      - ./.env
     environment:
       MODE: standalone
       JVM_XMS: 256m
@@ -75,8 +209,8 @@ services:
 
   redis:
     image: redis:7.4-alpine
-    env_file:
-      - ./.env
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     command:
       - sh
       - -c
@@ -106,8 +240,6 @@ services:
 
   rabbitmq:
     image: rabbitmq:4.1-management
-    env_file:
-      - ./.env
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}

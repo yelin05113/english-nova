@@ -59,6 +59,33 @@ function readLayoutMode(): GlobalLayoutMode {
   return localStorage.getItem(LAYOUT_MODE_KEY) === 'default' ? 'default' : 'pixel'
 }
 
+function decodeJwtPayload(token: string) {
+  const segments = token.split('.')
+  if (segments.length !== 3) {
+    return null
+  }
+
+  try {
+    const normalized = segments[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+    const decoded = window.atob(padded)
+    return JSON.parse(decoded) as { exp?: number }
+  } catch {
+    return null
+  }
+}
+
+function isJwtExpired(token: string) {
+  const payload = decodeJwtPayload(token)
+  if (!payload) {
+    return true
+  }
+  if (typeof payload.exp !== 'number') {
+    return false
+  }
+  return payload.exp * 1000 <= Date.now()
+}
+
 function readStoredSession(): StoredAuthSession | null {
   localStorage.removeItem(TOKEN_KEY)
 
@@ -70,7 +97,12 @@ function readStoredSession(): StoredAuthSession | null {
   try {
     const session = JSON.parse(raw) as StoredAuthSession
     const inactiveMs = Date.now() - session.lastActivityAt
-    if (!session.token || typeof session.lastActivityAt !== 'number' || inactiveMs >= AUTH_IDLE_TIMEOUT_MS) {
+    if (
+      !session.token ||
+      typeof session.lastActivityAt !== 'number' ||
+      inactiveMs >= AUTH_IDLE_TIMEOUT_MS ||
+      isJwtExpired(session.token)
+    ) {
       sessionStorage.removeItem(TOKEN_KEY)
       return null
     }
@@ -233,8 +265,8 @@ export function useAppState() {
     setStoredSession(null)
   }
 
-  function authOptions(authToken = token): ApiAuthOptions {
-    return { token: authToken, onUnauthorized: clearAuth }
+  function authOptions(authToken = token, onUnauthorized: (() => void) | undefined = clearAuth): ApiAuthOptions {
+    return { token: authToken, onUnauthorized }
   }
 
   function setLayoutMode(nextMode: GlobalLayoutMode) {
@@ -419,9 +451,10 @@ export function useAppState() {
   async function loadPublicData(authToken?: string) {
     const requestId = ++loadPublicDataRequestIdRef.current
     try {
+      const options = authToken ? authOptions(authToken, undefined) : undefined
       const [systemResult, publicWordbookResult] = await Promise.allSettled([
         systemApi.getOverview(),
-        searchApi.listPublicWordbooks(authToken ? authOptions(authToken) : undefined),
+        searchApi.listPublicWordbooks(options),
       ])
 
       if (requestId !== loadPublicDataRequestIdRef.current) {
@@ -473,6 +506,7 @@ export function useAppState() {
     setLoading(true)
     try {
       const options = authOptions(authToken)
+      const bootstrapOptions = authOptions(authToken, undefined)
       const me = await authApi.me(options)
       if (requestId !== loadPrivateDataRequestIdRef.current) return
       setUser(me)
@@ -481,12 +515,12 @@ export function useAppState() {
       const [systemResult, studyResult, progressResult, presetResult, wordbookResult, publicWordbookResult, wordNotebookResult] =
         await Promise.allSettled([
           systemApi.getOverview(),
-          studyApi.getAgenda(options),
-          studyApi.getProgress(options),
-          importApi.listPresets(options),
-          quizApi.listWordbooks(options),
-          searchApi.listPublicWordbooks(options),
-          wordNotebookApi.listWordNotebooks(options),
+          studyApi.getAgenda(bootstrapOptions),
+          studyApi.getProgress(bootstrapOptions),
+          importApi.listPresets(bootstrapOptions),
+          quizApi.listWordbooks(bootstrapOptions),
+          searchApi.listPublicWordbooks(bootstrapOptions),
+          wordNotebookApi.listWordNotebooks(bootstrapOptions),
         ])
 
       const presetData = presetResult.status === 'fulfilled' ? presetResult.value : []

@@ -14,9 +14,13 @@ public interface UserMapper extends BaseMapper<UserPo> {
 
     int countByUsernameExceptId(@Param("username") String username, @Param("userId") long userId);
 
-    UserPo findByAccount(@Param("account") String account, @Param("emailAccount") String emailAccount);
+    UserPo findByUsername(@Param("username") String username);
+
+    UserPo findByEmail(@Param("email") String email);
 
     int updateProfile(@Param("userId") long userId, @Param("username") String username, @Param("avatarUrl") String avatarUrl);
 
     int updateQuizOptionStrategy(@Param("userId") long userId, @Param("quizOptionStrategy") String quizOptionStrategy);
+
+    int updatePasswordHash(@Param("userId") long userId, @Param("passwordHash") String passwordHash);
 }

@@ -3116,13 +3116,13 @@ body.layout-pixel .auth-modal-close:focus-visible {
   gap: 8px;
 }
 
-.library-subscription-book-tags {
+.library-subscription-book-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.library-subscription-book-tags small {
+.library-subscription-book-meta small {
   padding: 5px 10px;
   border-radius: 999px;
   background: rgba(255, 243, 214, 0.94);
@@ -6789,6 +6789,33 @@ body.layout-default .home-book-card {
   font-weight: 700;
 }
 
+body.layout-pixel .word-notebook-learn-button {
+  min-width: 96px;
+  padding: 11px 16px 10px;
+  border-radius: 0;
+  border: 3px solid #20202d;
+  background:
+    linear-gradient(180deg, #ffe9a6 0 72%, #f2c650 72% 100%);
+  color: #20202d;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  box-shadow: 4px 4px 0 #20202d;
+  transition: transform 120ms steps(2, end), box-shadow 120ms steps(2, end), background 120ms steps(2, end);
+}
+
+body.layout-pixel .word-notebook-learn-button:hover,
+body.layout-pixel .word-notebook-learn-button:focus-visible {
+  background:
+    linear-gradient(180deg, #fff0be 0 72%, #ffd15e 72% 100%);
+  transform: translate(-1px, -1px);
+  box-shadow: 6px 6px 0 #20202d;
+}
+
+body.layout-pixel .word-notebook-learn-button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #20202d;
+}
+
 .word-notebook-card-body {
   display: grid;
   gap: 12px;
@@ -6996,13 +7023,21 @@ body.layout-default .home-book-card {
   transform: none;
 }
 
-.quiz-ai-panel {
+.quiz-ai-panel-frame {
   position: fixed;
   right: 28px;
   bottom: 124px;
   z-index: 39;
   width: min(420px, calc(100vw - 24px));
+  height: min(640px, calc(100vh - 48px));
+}
+
+.quiz-ai-panel {
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 14px;
   padding: 18px;
   border: 1px solid rgba(181, 114, 35, 0.18);
@@ -7012,6 +7047,7 @@ body.layout-default .home-book-card {
     rgba(252, 248, 241, 0.98);
   box-shadow: 0 26px 64px rgba(107, 63, 29, 0.2);
   backdrop-filter: blur(14px);
+  overflow: hidden;
 }
 
 .quiz-ai-panel-head {
@@ -7019,6 +7055,13 @@ body.layout-default .home-book-card {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.quiz-ai-panel-head:active {
+  cursor: grabbing;
 }
 
 .quiz-ai-panel-head div {
@@ -7060,7 +7103,7 @@ body.layout-default .home-book-card {
   display: grid;
   gap: 10px;
   min-height: 180px;
-  max-height: min(48vh, 380px);
+  max-height: none;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -7154,13 +7197,82 @@ body.layout-default .home-book-card {
   gap: 10px;
 }
 
+.quiz-ai-panel-resize {
+  position: absolute;
+  touch-action: none;
+  user-select: none;
+}
+
+.quiz-ai-panel-resize--top,
+.quiz-ai-panel-resize--bottom {
+  left: 18px;
+  right: 18px;
+  height: 12px;
+  cursor: ns-resize;
+}
+
+.quiz-ai-panel-resize--top {
+  top: -3px;
+}
+
+.quiz-ai-panel-resize--bottom {
+  bottom: -3px;
+}
+
+.quiz-ai-panel-resize--left,
+.quiz-ai-panel-resize--right {
+  top: 18px;
+  bottom: 18px;
+  width: 12px;
+  cursor: ew-resize;
+}
+
+.quiz-ai-panel-resize--left {
+  left: -3px;
+}
+
+.quiz-ai-panel-resize--right {
+  right: -3px;
+}
+
+.quiz-ai-panel-resize--top-left,
+.quiz-ai-panel-resize--top-right,
+.quiz-ai-panel-resize--bottom-right,
+.quiz-ai-panel-resize--bottom-left {
+  width: 24px;
+  height: 24px;
+}
+
+.quiz-ai-panel-resize--top-left {
+  top: -4px;
+  left: -4px;
+  cursor: nwse-resize;
+}
+
+.quiz-ai-panel-resize--top-right {
+  top: -4px;
+  right: -4px;
+  cursor: nesw-resize;
+}
+
+.quiz-ai-panel-resize--bottom-right {
+  right: -4px;
+  bottom: -4px;
+  cursor: nwse-resize;
+}
+
+.quiz-ai-panel-resize--bottom-left {
+  left: -4px;
+  bottom: -4px;
+  cursor: nesw-resize;
+}
+
 @media (max-width: 880px) {
   .word-notebooks-hero,
   .word-notebooks-layout {
     grid-template-columns: 1fr;
   }
 
-  .quiz-ai-panel,
   .quiz-ai-launcher {
     width: 96px;
     height: 96px;
@@ -7190,11 +7302,12 @@ body.layout-default .home-book-card {
     height: 96px;
   }
 
-  .quiz-ai-panel {
+  .quiz-ai-panel-frame {
     left: 12px;
     right: 12px;
     bottom: 96px;
     width: auto;
+    height: min(560px, calc(100vh - 120px));
   }
 
   .quiz-ai-panel-head,

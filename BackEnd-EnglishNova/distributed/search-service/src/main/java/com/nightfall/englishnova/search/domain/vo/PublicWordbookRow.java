@@ -15,7 +15,6 @@ public class PublicWordbookRow {
     private String sourceUrl;
     private String licenseName;
     private String licenseUrl;
-    private String tag;
     private int wordCount;
     private boolean subscribed;
     private int completedCount;

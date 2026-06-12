@@ -17,6 +17,8 @@ public interface PublicCatalogImportJobMapper {
 
     PublicCatalogImportJobVo findJob(@Param("jobId") long jobId);
 
+    PublicCatalogImportJobVo findJobByIdAndCreator(@Param("jobId") long jobId, @Param("createdByUserId") long createdByUserId);
+
     PublicCatalogImportJobVo findNextRunnableJob();
 
     int startJob(@Param("jobId") long jobId);

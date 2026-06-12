@@ -43,9 +43,9 @@ public interface SearchCatalogService {
 
     PublicCatalogImportJobDto createHighFrequencyPublicCatalogJob(PublicCatalogImportJobRequest request, CurrentUser user);
 
-    PublicCatalogImportJobDto getPublicCatalogImportJob(long jobId);
+    PublicCatalogImportJobDto getPublicCatalogImportJob(long jobId, CurrentUser user);
 
-    PublicCatalogImportJobDto retryFailedPublicCatalogImportJob(long jobId);
+    PublicCatalogImportJobDto retryFailedPublicCatalogImportJob(long jobId, CurrentUser user);
 
-    PublicCatalogImportJobDto cancelPublicCatalogImportJob(long jobId);
+    PublicCatalogImportJobDto cancelPublicCatalogImportJob(long jobId, CurrentUser user);
 }

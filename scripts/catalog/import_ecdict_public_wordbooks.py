@@ -217,11 +217,17 @@ def write_sql(output: Path, entries: dict[str, Entry], wordbooks: dict[str, list
         handle.write("START TRANSACTION;\n\n")
         for tag, name in WORDBOOKS:
             handle.write(
-                "INSERT INTO public_wordbooks(name, source_name, source_url, license_name, license_url, tag, word_count) "
-                f"VALUES({sql(name)}, {sql(SOURCE_NAME)}, {sql(SOURCE_URL)}, {sql(LICENSE_NAME)}, {sql(LICENSE_URL)}, {sql(tag)}, 0) "
-                "ON DUPLICATE KEY UPDATE "
-                "name = VALUES(name), source_name = VALUES(source_name), source_url = VALUES(source_url), "
-                "license_name = VALUES(license_name), license_url = VALUES(license_url);\n"
+                "INSERT INTO public_wordbooks(name, source_name, source_url, license_name, license_url, word_count) "
+                f"SELECT {sql(name)}, {sql(SOURCE_NAME)}, {sql(SOURCE_URL)}, {sql(LICENSE_NAME)}, {sql(LICENSE_URL)}, 0 "
+                "FROM DUAL WHERE NOT EXISTS ("
+                f"SELECT 1 FROM public_wordbooks WHERE name = {sql(name)}"
+                ");\n"
+            )
+            handle.write(
+                "UPDATE public_wordbooks "
+                f"SET source_name = {sql(SOURCE_NAME)}, source_url = {sql(SOURCE_URL)}, "
+                f"license_name = {sql(LICENSE_NAME)}, license_url = {sql(LICENSE_URL)} "
+                f"WHERE name = {sql(name)};\n"
             )
         handle.write("\n")
 
@@ -254,13 +260,14 @@ def write_sql(output: Path, entries: dict[str, Entry], wordbooks: dict[str, list
         handle.write("\n")
 
         for tag, words in wordbooks.items():
-            handle.write(f"DELETE m FROM public_wordbook_entries m JOIN public_wordbooks w ON w.id = m.public_wordbook_id WHERE w.tag = {sql(tag)};\n")
+            name = next(wordbook_name for wordbook_tag, wordbook_name in WORDBOOKS if wordbook_tag == tag)
+            handle.write(f"DELETE m FROM public_wordbook_entries m JOIN public_wordbooks w ON w.id = m.public_wordbook_id WHERE w.name = {sql(name)};\n")
             for index, word in enumerate(words, start=1):
                 handle.write(
                     "INSERT INTO public_wordbook_entries(public_wordbook_id, public_entry_id, sort_order) "
                     "SELECT w.id, v.id, "
                     f"{index} FROM public_wordbooks w JOIN public_vocabulary_entries v "
-                    f"WHERE w.tag = {sql(tag)} AND v.word = {sql(word)};\n"
+                    f"WHERE w.name = {sql(name)} AND v.word = {sql(word)};\n"
                 )
         handle.write("\n")
         handle.write(

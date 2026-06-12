@@ -444,8 +444,7 @@ export function LibraryView() {
                                 {book.name}
                                 {learningPublicWordbookId === book.id ? <em className="word-notebook-status-pill">正在学习</em> : null}
                               </strong>
-                              <span className="library-subscription-book-tags">
-                                <small>{book.tag || '公共词书'}</small>
+                              <span className="library-subscription-book-meta">
                                 <small>{book.licenseName}</small>
                               </span>
                               <span>

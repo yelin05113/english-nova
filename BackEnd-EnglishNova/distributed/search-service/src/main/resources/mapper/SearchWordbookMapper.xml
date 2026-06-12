@@ -16,7 +16,6 @@
             pw.source_url,
             pw.license_name,
             pw.license_url,
-            pw.tag,
             pw.word_count,
             CASE WHEN upw.id IS NULL THEN 0 ELSE 1 END AS subscribed,
             COALESCE(upw.completed_count, 0) AS completed_count,
@@ -57,7 +56,17 @@
               AND DATE(COALESCE(qa.answered_at, qa.created_at)) = CURRENT_DATE
             GROUP BY qs.target_id
         ) stats ON stats.public_wordbook_id = pw.id
-        ORDER BY FIELD(pw.tag, 'cet4', 'cet6', 'ky', 'toefl', 'ielts', 'gre'), pw.name
+        ORDER BY CASE pw.name
+            WHEN '初中' THEN 1
+            WHEN '高中' THEN 2
+            WHEN '英语四级' THEN 3
+            WHEN '英语六级' THEN 4
+            WHEN '考研英语' THEN 5
+            WHEN '托福' THEN 6
+            WHEN 'SAT' THEN 7
+            ELSE 99
+        END,
+        pw.name
     </select>
 
     <select id="findPublicWordbook" resultType="com.nightfall.englishnova.search.domain.vo.PublicWordbookRow">
@@ -68,7 +77,6 @@
             source_url,
             license_name,
             license_url,
-            tag,
             word_count,
             created_at,
             updated_at
@@ -85,7 +93,6 @@
             pw.source_url,
             pw.license_name,
             pw.license_url,
-            pw.tag,
             pw.word_count,
             CASE WHEN upw.id IS NULL THEN 0 ELSE 1 END AS subscribed,
             COALESCE(upw.completed_count, 0) AS completed_count,

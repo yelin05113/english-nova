@@ -139,8 +139,8 @@ public class SearchController {
             @PathVariable long jobId,
             HttpServletRequest servletRequest
     ) {
-        RequestUserExtractor.require(servletRequest);
-        return ApiResponse.success(searchCatalogService.getPublicCatalogImportJob(jobId));
+        CurrentUser user = RequestUserExtractor.require(servletRequest);
+        return ApiResponse.success(searchCatalogService.getPublicCatalogImportJob(jobId, user));
     }
 
     @PostMapping("/public-catalog/import-jobs/{jobId}/retry-failed")
@@ -148,8 +148,8 @@ public class SearchController {
             @PathVariable long jobId,
             HttpServletRequest servletRequest
     ) {
-        RequestUserExtractor.require(servletRequest);
-        return ApiResponse.success(searchCatalogService.retryFailedPublicCatalogImportJob(jobId));
+        CurrentUser user = RequestUserExtractor.require(servletRequest);
+        return ApiResponse.success(searchCatalogService.retryFailedPublicCatalogImportJob(jobId, user));
     }
 
     @PostMapping("/public-catalog/import-jobs/{jobId}/cancel")
@@ -157,7 +157,7 @@ public class SearchController {
             @PathVariable long jobId,
             HttpServletRequest servletRequest
     ) {
-        RequestUserExtractor.require(servletRequest);
-        return ApiResponse.success(searchCatalogService.cancelPublicCatalogImportJob(jobId));
+        CurrentUser user = RequestUserExtractor.require(servletRequest);
+        return ApiResponse.success(searchCatalogService.cancelPublicCatalogImportJob(jobId, user));
     }
 }

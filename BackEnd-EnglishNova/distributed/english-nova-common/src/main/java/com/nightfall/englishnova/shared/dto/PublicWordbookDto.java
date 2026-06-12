@@ -18,8 +18,6 @@ public record PublicWordbookDto(
         String licenseName,
         @Schema(description = "License URL")
         String licenseUrl,
-        @Schema(description = "ECDICT tag")
-        String tag,
         @Schema(description = "Total word count")
         int wordCount,
         @Schema(description = "Whether the current user has subscribed")

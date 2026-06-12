@@ -21,24 +21,29 @@ const artworkByName = Object.fromEntries(
   }),
 ) as Record<string, string>
 
+const sharedArtworkAliases = {
+  '\u521d\u4e2d': 'junior',
+  junior: 'junior',
+  '\u9ad8\u4e2d': 'high',
+  high: 'high',
+  '\u82f1\u8bed\u56db\u7ea7': 'cet4',
+  '\u56db\u7ea7': 'cet4',
+  cet4: 'cet4',
+  '\u82f1\u8bed\u516d\u7ea7': 'cet6',
+  '\u516d\u7ea7': 'cet6',
+  cet6: 'cet6',
+  '\u8003\u7814\u82f1\u8bed': 'kyenglish',
+  '\u8003\u7814': 'kyenglish',
+  kyenglish: 'kyenglish',
+  '\u6258\u798f': 'toefl',
+  toefl: 'toefl',
+  sat: 'sat',
+  SAT: 'sat',
+} as const
+
 const artworkAliasMap: Record<WordbookArtworkKind, Record<string, string>> = {
-  imported: {},
-  public: {
-    '\u82f1\u8bed\u56db\u7ea7': 'cet4',
-    '\u56db\u7ea7': 'cet4',
-    cet4: 'cet4',
-    '\u82f1\u8bed\u516d\u7ea7': 'cet6',
-    '\u516d\u7ea7': 'cet6',
-    cet6: 'cet6',
-    '\u8003\u7814\u82f1\u8bed': 'kyenglish',
-    '\u8003\u7814': 'kyenglish',
-    kyenglish: 'kyenglish',
-    '\u96c5\u601d': 'ielts',
-    ielts: 'ielts',
-    '\u6258\u798f': 'toefl',
-    toefl: 'toefl',
-    gre: 'gre',
-  },
+  imported: { ...sharedArtworkAliases },
+  public: { ...sharedArtworkAliases },
 }
 
 export function getWordbookArtwork(name: string, kind: WordbookArtworkKind) {

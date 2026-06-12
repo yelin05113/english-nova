@@ -27,7 +27,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `status`, `created_at`) VALUES (1103,'system_public_catalog','system-public-catalog@englishnova.local','SYSTEM_EXTERNAL_IMPORT','ACTIVE','2026-04-12 14:06:22');
+INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `status`, `created_at`) VALUES (1103,'system_public_catalog','system-public-catalog@englishnova.local','$2a$12$FWhk9zt23JeExTtkJC/Rouzf8czq/zx3/AT5cdP5LFsRTg6BEJfs6','ACTIVE','2026-04-12 14:06:22');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 

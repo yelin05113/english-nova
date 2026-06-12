@@ -4,6 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nightfall.englishnova.search.config.ExampleEnrichmentProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -14,6 +17,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,20 +26,34 @@ import java.util.Map;
 public class OpenAiExampleEnrichmentClient {
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60);
+    private static final Logger log = LoggerFactory.getLogger(OpenAiExampleEnrichmentClient.class);
 
     private final ObjectMapper objectMapper;
     private final ExampleEnrichmentProperties properties;
     private final HttpClient httpClient;
 
+    @Autowired
     public OpenAiExampleEnrichmentClient(
             ObjectMapper objectMapper,
             ExampleEnrichmentProperties properties
     ) {
+        this(
+                objectMapper,
+                properties,
+                HttpClient.newBuilder()
+                        .connectTimeout(Duration.ofSeconds(15))
+                        .build()
+        );
+    }
+
+    OpenAiExampleEnrichmentClient(
+            ObjectMapper objectMapper,
+            ExampleEnrichmentProperties properties,
+            HttpClient httpClient
+    ) {
         this.objectMapper = objectMapper;
         this.properties = properties;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(15))
-                .build();
+        this.httpClient = httpClient;
     }
 
     public boolean isConfigured() {
@@ -78,7 +96,13 @@ public class OpenAiExampleEnrichmentClient {
         }
 
         try {
-            JsonNode items = executeStructuredJsonRequest(requestJson, useChatCompletions);
+            JsonNode items = executeStructuredJsonRequest(
+                    requestJson,
+                    useChatCompletions,
+                    "user-example-enrichment",
+                    requests.size(),
+                    properties.openai() == null ? "" : properties.openai().model()
+            );
             List<UserExampleEnrichmentResult> results = new ArrayList<>();
             for (JsonNode item : items) {
                 results.add(new UserExampleEnrichmentResult(
@@ -113,7 +137,13 @@ public class OpenAiExampleEnrichmentClient {
         }
 
         try {
-            JsonNode items = executeStructuredJsonRequest(requestJson, useChatCompletions);
+            JsonNode items = executeStructuredJsonRequest(
+                    requestJson,
+                    useChatCompletions,
+                    "public-example-generation",
+                    requests.size(),
+                    properties.openai() == null ? "" : properties.openai().model()
+            );
             List<PublicExampleGenerationResult> results = new ArrayList<>();
             for (JsonNode item : items) {
                 results.add(new PublicExampleGenerationResult(
@@ -138,6 +168,10 @@ public class OpenAiExampleEnrichmentClient {
         }
 
         ExampleEnrichmentProperties.OpenAiProperties openai = properties.openai();
+        if (shouldUseChatCompletionsForSpeech()) {
+            return synthesizeSpeechWithChatCompletions(openai, input);
+        }
+
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", openai.ttsModel());
         body.put("voice", openai.ttsVoice());
@@ -175,10 +209,30 @@ public class OpenAiExampleEnrichmentClient {
         }
     }
 
-    private JsonNode executeStructuredJsonRequest(String requestJson, boolean useChatCompletions) throws IOException, InterruptedException {
-        ExampleEnrichmentProperties.OpenAiProperties openai = properties.openai();
+    private byte[] synthesizeSpeechWithChatCompletions(
+            ExampleEnrichmentProperties.OpenAiProperties openai,
+            String input
+    ) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", openai.ttsModel());
+        body.put("messages", List.of(Map.of(
+                "role", "assistant",
+                "content", input
+        )));
+        body.put("audio", Map.of(
+                "voice", openai.ttsVoice(),
+                "format", "mp3"
+        ));
+
+        String requestJson;
+        try {
+            requestJson = objectMapper.writeValueAsString(body);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Failed to serialize OpenAI speech request", exception);
+        }
+
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(trimTrailingSlash(openai.baseUrl()) + (useChatCompletions ? "/chat/completions" : "/responses")))
+                .uri(URI.create(trimTrailingSlash(openai.baseUrl()) + "/chat/completions"))
                 .timeout(REQUEST_TIMEOUT)
                 .header("Authorization", "Bearer " + openai.apiKey())
                 .header("Content-Type", "application/json")
@@ -186,23 +240,117 @@ public class OpenAiExampleEnrichmentClient {
                 .POST(HttpRequest.BodyPublishers.ofString(requestJson, StandardCharsets.UTF_8))
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() >= 400) {
+                throw new IllegalStateException("OpenAI speech request failed: " + response.statusCode() + " " + abbreviate(response.body(), 400));
+            }
+            JsonNode root = objectMapper.readTree(response.body());
+            String audioBase64 = extractChatCompletionAudioPayload(root);
+            if (!hasText(audioBase64)) {
+                throw new IllegalStateException("OpenAI speech response did not contain audio data");
+            }
+            try {
+                return Base64.getDecoder().decode(audioBase64);
+            } catch (IllegalArgumentException exception) {
+                throw new IllegalStateException("OpenAI speech response contained invalid audio data", exception);
+            }
+        } catch (IOException | InterruptedException exception) {
+            throw new IllegalStateException("Failed to call OpenAI speech synthesis", exception);
+        }
+    }
+
+    private JsonNode executeStructuredJsonRequest(
+            String requestJson,
+            boolean useChatCompletions,
+            String requestType,
+            int itemCount,
+            String model
+    ) throws IOException, InterruptedException {
+        ExampleEnrichmentProperties.OpenAiProperties openai = properties.openai();
+        String endpoint = useChatCompletions ? "/chat/completions" : "/responses";
+        long startedAt = System.nanoTime();
+        int payloadBytes = requestJson.getBytes(StandardCharsets.UTF_8).length;
+        log.info(
+                "OpenAI {} request starting: endpoint={}, model={}, itemCount={}, payloadBytes={}",
+                requestType,
+                endpoint,
+                model,
+                itemCount,
+                payloadBytes
+        );
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(trimTrailingSlash(openai.baseUrl()) + endpoint))
+                .timeout(REQUEST_TIMEOUT)
+                .header("Authorization", "Bearer " + openai.apiKey())
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(requestJson, StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response;
+        try {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        } catch (IOException | InterruptedException exception) {
+            log.warn(
+                    "OpenAI {} request transport failed after {} ms: endpoint={}, model={}, itemCount={}",
+                    requestType,
+                    elapsedMillis(startedAt),
+                    endpoint,
+                    model,
+                    itemCount,
+                    exception
+            );
+            throw exception;
+        }
+        log.info(
+                "OpenAI {} response received: endpoint={}, model={}, itemCount={}, status={}, elapsedMs={}, bodyChars={}",
+                requestType,
+                endpoint,
+                model,
+                itemCount,
+                response.statusCode(),
+                elapsedMillis(startedAt),
+                response.body() == null ? 0 : response.body().length()
+        );
         if (response.statusCode() >= 400) {
             throw new IllegalStateException("Text enrichment request failed: " + response.statusCode() + " " + abbreviate(response.body(), 400));
         }
 
-        JsonNode root = objectMapper.readTree(response.body());
-        String jsonPayload = useChatCompletions ? extractChatCompletionJsonPayload(root) : extractJsonPayload(root);
-        if (!hasText(jsonPayload)) {
-            throw new IllegalStateException("OpenAI response did not contain structured output");
-        }
+        try {
+            JsonNode root = objectMapper.readTree(response.body());
+            String jsonPayload = useChatCompletions ? extractChatCompletionJsonPayload(root) : extractJsonPayload(root);
+            if (!hasText(jsonPayload)) {
+                throw new IllegalStateException("OpenAI response did not contain structured output");
+            }
 
-        JsonNode parsed = objectMapper.readTree(jsonPayload);
-        JsonNode items = parsed.path("items");
-        if (!items.isArray()) {
-            throw new IllegalStateException("OpenAI response JSON did not contain an items array");
+            JsonNode parsed = objectMapper.readTree(jsonPayload);
+            JsonNode items = parsed.path("items");
+            if (!items.isArray()) {
+                throw new IllegalStateException("OpenAI response JSON did not contain an items array");
+            }
+            log.info(
+                    "OpenAI {} response parsed: endpoint={}, model={}, itemCount={}, parsedItems={}, elapsedMs={}",
+                    requestType,
+                    endpoint,
+                    model,
+                    itemCount,
+                    items.size(),
+                    elapsedMillis(startedAt)
+            );
+            return items;
+        } catch (IOException | RuntimeException exception) {
+            log.warn(
+                    "OpenAI {} response parse failed after {} ms: endpoint={}, model={}, itemCount={}",
+                    requestType,
+                    elapsedMillis(startedAt),
+                    endpoint,
+                    model,
+                    itemCount,
+                    exception
+            );
+            throw exception;
         }
-        return items;
     }
 
     private Map<String, Object> buildCorrectionRequestBody(List<UserExampleEnrichmentRequest> requests) {
@@ -424,14 +572,37 @@ public class OpenAiExampleEnrichmentClient {
         return choices.get(0).path("message").path("content").asText();
     }
 
+    private String extractChatCompletionAudioPayload(JsonNode root) {
+        JsonNode choices = root.path("choices");
+        if (!choices.isArray() || choices.isEmpty()) {
+            return "";
+        }
+        return choices.get(0).path("message").path("audio").path("data").asText();
+    }
+
     private boolean shouldUseChatCompletions() {
         ExampleEnrichmentProperties.OpenAiProperties openai = properties.openai();
         if (openai == null) {
             return false;
         }
-        String baseUrl = openai.baseUrl() == null ? "" : openai.baseUrl().toLowerCase();
-        String model = openai.model() == null ? "" : openai.model().toLowerCase();
-        return baseUrl.contains("deepseek") || model.startsWith("deepseek");
+        return isChatCompletionsPreferred(openai.baseUrl(), openai.model());
+    }
+
+    private boolean shouldUseChatCompletionsForSpeech() {
+        ExampleEnrichmentProperties.OpenAiProperties openai = properties.openai();
+        if (openai == null) {
+            return false;
+        }
+        return isChatCompletionsPreferred(openai.baseUrl(), openai.ttsModel());
+    }
+
+    private boolean isChatCompletionsPreferred(String baseUrlValue, String modelValue) {
+        String baseUrl = baseUrlValue == null ? "" : baseUrlValue.toLowerCase();
+        String model = modelValue == null ? "" : modelValue.toLowerCase();
+        return baseUrl.contains("deepseek")
+                || baseUrl.contains("xiaomimimo.com")
+                || model.startsWith("deepseek")
+                || model.startsWith("mimo-");
     }
 
     private boolean hasText(String value) {
@@ -450,6 +621,10 @@ public class OpenAiExampleEnrichmentClient {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
     }
 
     public record UserExampleEnrichmentRequest(

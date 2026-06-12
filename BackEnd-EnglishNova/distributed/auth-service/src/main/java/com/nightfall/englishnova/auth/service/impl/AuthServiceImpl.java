@@ -1,5 +1,6 @@
 package com.nightfall.englishnova.auth.service.impl;
 
+import com.nightfall.englishnova.auth.config.AuthServiceConfig;
 import com.nightfall.englishnova.auth.domain.po.UserPo;
 import com.nightfall.englishnova.auth.mapper.UserMapper;
 import com.nightfall.englishnova.auth.service.AuthService;
@@ -7,14 +8,16 @@ import com.nightfall.englishnova.auth.service.JwtTokenService;
 import com.nightfall.englishnova.auth.service.UserAvatarStorageService;
 import com.nightfall.englishnova.shared.dto.AuthTokenResponse;
 import com.nightfall.englishnova.shared.dto.AuthUserDto;
+import com.nightfall.englishnova.shared.dto.ChangePasswordRequest;
 import com.nightfall.englishnova.shared.dto.LoginRequest;
 import com.nightfall.englishnova.shared.dto.RegisterRequest;
-import com.nightfall.englishnova.shared.dto.UpdateQuizOptionStrategyRequest;
 import com.nightfall.englishnova.shared.dto.UpdateProfileRequest;
+import com.nightfall.englishnova.shared.dto.UpdateQuizOptionStrategyRequest;
 import com.nightfall.englishnova.shared.enums.QuizOptionStrategy;
 import com.nightfall.englishnova.shared.enums.UserStatus;
 import com.nightfall.englishnova.shared.exception.ForbiddenException;
 import com.nightfall.englishnova.shared.exception.UnauthorizedException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,19 +28,26 @@ import java.util.Locale;
 @Service
 public class AuthServiceImpl implements AuthService {
 
+    private static final String BCRYPT_PREFIX_2A = "$2a$";
+    private static final String BCRYPT_PREFIX_2B = "$2b$";
+    private static final String BCRYPT_PREFIX_2Y = "$2y$";
+
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final int targetBcryptStrength;
     private final JwtTokenService jwtTokenService;
     private final UserAvatarStorageService avatarStorageService;
 
     public AuthServiceImpl(
             UserMapper userMapper,
             PasswordEncoder passwordEncoder,
+            AuthServiceConfig.PasswordSecurityProperties passwordSecurityProperties,
             JwtTokenService jwtTokenService,
             UserAvatarStorageService avatarStorageService
     ) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
+        this.targetBcryptStrength = passwordSecurityProperties == null ? 10 : passwordSecurityProperties.bcryptStrength();
         this.jwtTokenService = jwtTokenService;
         this.avatarStorageService = avatarStorageService;
     }
@@ -47,7 +57,6 @@ public class AuthServiceImpl implements AuthService {
     public AuthTokenResponse register(RegisterRequest request) {
         String username = request.username().trim();
         String email = request.email().trim().toLowerCase(Locale.ROOT);
-        ensureUnique(username, email);
 
         UserPo user = new UserPo();
         user.setUsername(username);
@@ -55,10 +64,14 @@ public class AuthServiceImpl implements AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setQuizOptionStrategy(QuizOptionStrategy.RANDOM.name());
         user.setStatus(UserStatus.ACTIVE.name());
-        userMapper.insert(user);
+        try {
+            userMapper.insert(user);
+        } catch (DuplicateKeyException exception) {
+            throw duplicateUserException(username, email);
+        }
 
         if (user.getId() == null) {
-            throw new IllegalArgumentException("注册失败，请稍后重试");
+            throw new IllegalArgumentException("Registration failed, please try again later");
         }
 
         String token = jwtTokenService.issueToken(user.getId(), username);
@@ -66,17 +79,31 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public AuthTokenResponse login(LoginRequest request) {
         String account = request.account().trim();
-        UserPo user = userMapper.findByAccount(account, account.toLowerCase(Locale.ROOT));
-        if (user == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new UnauthorizedException("账号或密码错误");
+        UserPo user = findUserByAccount(account);
+        if (user == null || !isSupportedBcryptHash(user.getPasswordHash())
+                || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            throw new UnauthorizedException("Invalid account or password");
         }
         if (!UserStatus.ACTIVE.name().equals(user.getStatus())) {
-            throw new ForbiddenException("账号已被禁用");
+            throw new ForbiddenException("Account is disabled");
         }
+        refreshPasswordHashIfNeeded(user, request.password());
         String token = jwtTokenService.issueToken(user.getId(), user.getUsername());
         return new AuthTokenResponse(token, toAuthUser(user));
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(long userId, ChangePasswordRequest request) {
+        UserPo user = requireActiveUser(userId);
+        if (!isSupportedBcryptHash(user.getPasswordHash())
+                || !passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new UnauthorizedException("Current password is incorrect");
+        }
+        userMapper.updatePasswordHash(userId, passwordEncoder.encode(request.newPassword()));
     }
 
     @Override
@@ -95,10 +122,10 @@ public class AuthServiceImpl implements AuthService {
     public AuthUserDto getCurrentUser(long userId, String username) {
         UserPo user = userMapper.selectById(userId);
         if (user == null || !user.getUsername().equals(username)) {
-            throw new UnauthorizedException("登录已失效，请重新登录");
+            throw new UnauthorizedException("Login session is no longer valid");
         }
         if (!UserStatus.ACTIVE.name().equals(user.getStatus())) {
-            throw new ForbiddenException("账号已被禁用");
+            throw new ForbiddenException("Account is disabled");
         }
         return toAuthUser(user);
     }
@@ -108,15 +135,15 @@ public class AuthServiceImpl implements AuthService {
     public AuthTokenResponse updateProfile(long userId, UpdateProfileRequest request) {
         UserPo user = userMapper.selectById(userId);
         if (user == null) {
-            throw new UnauthorizedException("登录已失效，请重新登录");
+            throw new UnauthorizedException("Login session is no longer valid");
         }
         if (!UserStatus.ACTIVE.name().equals(user.getStatus())) {
-            throw new ForbiddenException("账号已被禁用");
+            throw new ForbiddenException("Account is disabled");
         }
 
         String username = request.username().trim();
         if (userMapper.countByUsernameExceptId(username, userId) > 0) {
-            throw new IllegalArgumentException("用户名已存在");
+            throw new IllegalArgumentException("Username already exists");
         }
 
         userMapper.updateProfile(userId, username, user.getAvatarUrl());
@@ -138,13 +165,30 @@ public class AuthServiceImpl implements AuthService {
         return toAuthUser(user);
     }
 
-    private void ensureUnique(String username, String email) {
+    private UserPo findUserByAccount(String account) {
+        if (looksLikeEmail(account)) {
+            return userMapper.findByEmail(account.toLowerCase(Locale.ROOT));
+        }
+        return userMapper.findByUsername(account);
+    }
+
+    private void refreshPasswordHashIfNeeded(UserPo user, String rawPassword) {
+        if (!needsBcryptRehash(user.getPasswordHash())) {
+            return;
+        }
+        String refreshedHash = passwordEncoder.encode(rawPassword);
+        userMapper.updatePasswordHash(user.getId(), refreshedHash);
+        user.setPasswordHash(refreshedHash);
+    }
+
+    private IllegalArgumentException duplicateUserException(String username, String email) {
         if (userMapper.countByUsername(username) > 0) {
-            throw new IllegalArgumentException("用户名已存在");
+            return new IllegalArgumentException("Username already exists");
         }
         if (userMapper.countByEmail(email) > 0) {
-            throw new IllegalArgumentException("邮箱已存在");
+            return new IllegalArgumentException("Email already exists");
         }
+        return new IllegalArgumentException("Username or email already exists");
     }
 
     private AuthUserDto toAuthUser(UserPo user) {
@@ -170,12 +214,41 @@ public class AuthServiceImpl implements AuthService {
     private UserPo requireActiveUser(long userId) {
         UserPo user = userMapper.selectById(userId);
         if (user == null) {
-            throw new UnauthorizedException("登录已失效，请重新登录");
+            throw new UnauthorizedException("Login session is no longer valid");
         }
         if (!UserStatus.ACTIVE.name().equals(user.getStatus())) {
-            throw new ForbiddenException("账号已被禁用");
+            throw new ForbiddenException("Account is disabled");
         }
         return user;
     }
 
+    private boolean isSupportedBcryptHash(String passwordHash) {
+        return passwordHash != null
+                && (passwordHash.startsWith(BCRYPT_PREFIX_2A)
+                || passwordHash.startsWith(BCRYPT_PREFIX_2B)
+                || passwordHash.startsWith(BCRYPT_PREFIX_2Y));
+    }
+
+    private boolean needsBcryptRehash(String passwordHash) {
+        if (!isSupportedBcryptHash(passwordHash)) {
+            return false;
+        }
+        int storedStrength = extractBcryptStrength(passwordHash);
+        return storedStrength > 0 && storedStrength != targetBcryptStrength;
+    }
+
+    private int extractBcryptStrength(String passwordHash) {
+        if (passwordHash == null || passwordHash.length() < 7) {
+            return -1;
+        }
+        try {
+            return Integer.parseInt(passwordHash.substring(4, 6));
+        } catch (NumberFormatException exception) {
+            return -1;
+        }
+    }
+
+    private boolean looksLikeEmail(String account) {
+        return account.indexOf('@') >= 0;
+    }
 }

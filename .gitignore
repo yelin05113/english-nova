@@ -2,6 +2,8 @@
 **/target/
 .local/
 logs/
+database-dumps/
+upload/example-audio/
 *.log
 node_modules/
 dist/

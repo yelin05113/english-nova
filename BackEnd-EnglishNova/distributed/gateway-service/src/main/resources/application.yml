@@ -58,7 +58,7 @@ spring:
             - id: public-wordbooks
               uri: lb://search-service
               predicates:
-                - Path=/api/public-wordbooks/**,/public-wordbooks/**
+                - Path=/api/public-wordbooks,/public-wordbooks,/api/public-wordbooks/**,/public-wordbooks/**
             - id: import-service
               uri: lb://import-service
               predicates:
@@ -66,7 +66,11 @@ spring:
             - id: quiz-service-wordbooks
               uri: lb://quiz-service
               predicates:
-                - Path=/api/wordbooks/**,/wordbooks/**,/api/word-notebooks/**,/word-notebooks/**
+                - Path=/api/wordbooks,/wordbooks,/api/wordbooks/**,/wordbooks/**
+            - id: quiz-service-word-notebooks
+              uri: lb://quiz-service
+              predicates:
+                - Path=/api/word-notebooks,/word-notebooks,/api/word-notebooks/**,/word-notebooks/**
             - id: quiz-service
               uri: lb://quiz-service
               predicates:
@@ -87,3 +91,6 @@ management:
 english-nova:
   jwt:
     secret: ${JWT_SECRET}
+  gateway:
+    internal-auth-secret: ${INTERNAL_AUTH_SECRET:english-nova-internal-auth-secret-change-me}
+    internal-auth-max-skew-seconds: ${INTERNAL_AUTH_MAX_SKEW_SECONDS:60}

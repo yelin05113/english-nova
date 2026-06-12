@@ -28,6 +28,20 @@ public interface ExampleEnrichmentTaskMapper {
             @Param("maxRetries") int maxRetries
     );
 
+    List<ExampleEnrichmentTaskVo> findPendingAudioOnlyTasks(
+            @Param("limit") int limit,
+            @Param("maxRetries") int maxRetries,
+            @Param("audioScopeField") String audioScopeField,
+            @Param("audioScopeOrder") String audioScopeOrder,
+            @Param("audioScopeLimit") int audioScopeLimit
+    );
+
+    List<ExampleEnrichmentTaskVo> findPendingTextOnlyTasks(
+            @Param("limit") int limit,
+            @Param("maxRetries") int maxRetries,
+            @Param("publicLimit") int publicLimit
+    );
+
     int markTaskRunning(
             @Param("taskId") long taskId,
             @Param("maxRetries") int maxRetries

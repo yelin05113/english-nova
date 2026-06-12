@@ -63,12 +63,12 @@ async function listWordNotebooks(options?: ApiAuthOptions, word?: string) {
     params.set('word', word.trim())
   }
   const query = params.toString()
-  return apiFetch<WordNotebookSummary[]>(`/word-notebooks${query ? `?${query}` : ''}`, undefined, withAuth(options))
+  return apiFetch<WordNotebookSummary[]>(`/word-notebooks/list${query ? `?${query}` : ''}`, undefined, withAuth(options))
 }
 
 async function createWordNotebook(payload: CreateWordNotebookRequest, options?: ApiAuthOptions) {
   return apiFetch<WordNotebookSummary>(
-    '/word-notebooks',
+    '/word-notebooks/create',
     {
       method: 'POST',
       body: JSON.stringify(payload),

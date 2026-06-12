@@ -56,6 +56,12 @@ english-nova:
   jwt:
     secret: ${JWT_SECRET}
     expiration-hours: ${JWT_EXPIRATION_HOURS:72}
+  gateway:
+    internal-auth-secret: ${INTERNAL_AUTH_SECRET:english-nova-internal-auth-secret-change-me}
+    internal-auth-max-skew-seconds: ${INTERNAL_AUTH_MAX_SKEW_SECONDS:60}
+  security:
+    password:
+      bcrypt-strength: ${AUTH_BCRYPT_STRENGTH:10}
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml

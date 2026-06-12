@@ -57,6 +57,9 @@ management:
       show-details: always
 
 english-nova:
+  gateway:
+    internal-auth-secret: ${INTERNAL_AUTH_SECRET:english-nova-internal-auth-secret-change-me}
+    internal-auth-max-skew-seconds: ${INTERNAL_AUTH_MAX_SKEW_SECONDS:60}
   search:
     exchange: ${ENGLISH_NOVA_IMPORT_EXCHANGE:english-nova.import}
     index-queue: ${ENGLISH_NOVA_SEARCH_INDEX_QUEUE:english-nova.search.index.queue}
@@ -65,9 +68,9 @@ english-nova:
       external-dir: ${ENGLISH_NOVA_SEARCH_PUBLIC_CATALOG_EXTERNAL_DIR:.local/public-catalog}
   enrichment:
     openai:
-      base-url: ${DEEPSEEK_BASE_URL:${OPENAI_BASE_URL:https://api.openai.com/v1}}
-      api-key: ${DEEPSEEK_API_KEY:${OPENAI_API_KEY:}}
-      model: ${DEEPSEEK_MODEL:${OPENAI_MODEL:}}
+      base-url: ${OPENAI_BASE_URL:${DEEPSEEK_BASE_URL:https://api.openai.com/v1}}
+      api-key: ${OPENAI_API_KEY:${DEEPSEEK_API_KEY:}}
+      model: ${OPENAI_MODEL:${DEEPSEEK_MODEL:}}
       tts-model: ${ENGLISH_NOVA_ENRICHMENT_TTS_MODEL:gpt-4o-mini-tts}
       tts-voice: ${ENGLISH_NOVA_ENRICHMENT_TTS_VOICE:cedar}
     batch-size: ${ENGLISH_NOVA_ENRICHMENT_BATCH_SIZE:30}
@@ -82,6 +85,11 @@ english-nova:
     chat-max-output-chars: ${ENGLISH_NOVA_ENRICHMENT_CHAT_MAX_OUTPUT_CHARS:1800}
     example-audio-enabled: ${ENGLISH_NOVA_ENRICHMENT_EXAMPLE_AUDIO_ENABLED:false}
     example-audio-dir: ${ENGLISH_NOVA_ENRICHMENT_EXAMPLE_AUDIO_DIR:upload/example-audio}
+    text-only-mode: ${ENGLISH_NOVA_ENRICHMENT_TEXT_ONLY_MODE:false}
+    audio-only-mode: ${ENGLISH_NOVA_ENRICHMENT_AUDIO_ONLY_MODE:false}
+    audio-scope-field: ${ENGLISH_NOVA_ENRICHMENT_AUDIO_SCOPE_FIELD:created_at}
+    audio-scope-order: ${ENGLISH_NOVA_ENRICHMENT_AUDIO_SCOPE_ORDER:asc}
+    audio-scope-limit: ${ENGLISH_NOVA_ENRICHMENT_AUDIO_SCOPE_LIMIT:50000}
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml

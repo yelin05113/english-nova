@@ -43,6 +43,7 @@
           AND (
               v.corrected_english IS NULL OR v.corrected_english = ''
               OR v.chinese_sentence IS NULL OR v.chinese_sentence = ''
+              OR v.example_audio_url IS NULL OR v.example_audio_url = ''
               OR LOWER(TRIM(v.corrected_english)) REGEXP '^(n|v|vt|vi|adj|adv|prep|pron|conj|art|aux|num|int|det|abbr|phr|pref|suf|modal)\\.'
               OR LOWER(TRIM(v.corrected_english)) = LOWER(TRIM(v.word))
               OR TRIM(v.corrected_english) NOT LIKE '% %'
@@ -99,6 +100,7 @@
                   AND (
                       v.corrected_english IS NULL OR v.corrected_english = ''
                       OR v.chinese_sentence IS NULL OR v.chinese_sentence = ''
+                      OR v.example_audio_url IS NULL OR v.example_audio_url = ''
                       OR LOWER(TRIM(v.corrected_english)) REGEXP '^(n|v|vt|vi|adj|adv|prep|pron|conj|art|aux|num|int|det|abbr|phr|pref|suf|modal)\\.'
                       OR LOWER(TRIM(v.corrected_english)) = LOWER(TRIM(v.word))
                       OR TRIM(v.corrected_english) NOT LIKE '% %'
@@ -136,6 +138,7 @@
           AND (
               v.corrected_english IS NULL OR v.corrected_english = ''
               OR v.chinese_sentence IS NULL OR v.chinese_sentence = ''
+              OR v.example_audio_url IS NULL OR v.example_audio_url = ''
               OR LOWER(TRIM(v.corrected_english)) REGEXP '^(n|v|vt|vi|adj|adv|prep|pron|conj|art|aux|num|int|det|abbr|phr|pref|suf|modal)\\.'
               OR LOWER(TRIM(v.corrected_english)) = LOWER(TRIM(v.word))
               OR TRIM(v.corrected_english) NOT LIKE '% %'
@@ -163,6 +166,81 @@
             CASE WHEN status = 'FAILED' THEN 0 ELSE 1 END,
             updated_at ASC,
             id ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findPendingAudioOnlyTasks" resultType="com.nightfall.englishnova.search.domain.vo.ExampleEnrichmentTaskVo">
+        SELECT t.id, t.entry_type, t.entry_id, t.status, t.attempt_count, t.last_error
+        FROM example_enrichment_tasks t
+        JOIN public_vocabulary_entries v
+          ON v.id = t.entry_id
+        JOIN (
+            SELECT id
+            FROM public_vocabulary_entries
+            ORDER BY
+                <choose>
+                    <when test="audioScopeField == 'created_at' and audioScopeOrder == 'desc'">
+                        created_at DESC,
+                        id DESC
+                    </when>
+                    <otherwise>
+                        created_at ASC,
+                        id ASC
+                    </otherwise>
+                </choose>
+            LIMIT #{audioScopeLimit}
+        ) scoped_public_entries
+          ON scoped_public_entries.id = v.id
+        WHERE t.entry_type = 'PUBLIC'
+          AND t.status IN ('PENDING', 'FAILED')
+          AND t.attempt_count &lt; #{maxRetries}
+          AND v.corrected_english IS NOT NULL
+          AND v.corrected_english != ''
+          AND v.chinese_sentence IS NOT NULL
+          AND v.chinese_sentence != ''
+          AND LOWER(TRIM(v.corrected_english)) NOT REGEXP '^(n|v|vt|vi|adj|adv|prep|pron|conj|art|aux|num|int|det|abbr|phr|pref|suf|modal)\\.'
+          AND LOWER(TRIM(v.corrected_english)) != LOWER(TRIM(v.word))
+          AND TRIM(v.corrected_english) LIKE '% %'
+          AND LOWER(v.corrected_english) LIKE CONCAT('%', LOWER(v.word), '%')
+          AND v.corrected_english REGEXP '[A-Za-z]'
+        ORDER BY
+            CASE WHEN t.status = 'FAILED' THEN 0 ELSE 1 END,
+            t.updated_at ASC,
+            t.entry_id ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findPendingTextOnlyTasks" resultType="com.nightfall.englishnova.search.domain.vo.ExampleEnrichmentTaskVo">
+        SELECT t.id, t.entry_type, t.entry_id, t.status, t.attempt_count, t.last_error
+        FROM example_enrichment_tasks t
+        JOIN public_vocabulary_entries v
+          ON v.id = t.entry_id
+        JOIN (
+            SELECT id
+            FROM public_vocabulary_entries
+            ORDER BY
+                CASE WHEN bnc_rank IS NOT NULL AND bnc_rank &gt; 0 THEN bnc_rank ELSE 999999999 END ASC,
+                CASE WHEN frq_rank IS NOT NULL AND frq_rank &gt; 0 THEN frq_rank ELSE 999999999 END ASC,
+                id ASC
+            LIMIT #{publicLimit}
+        ) scoped_public_entries
+          ON scoped_public_entries.id = v.id
+        WHERE t.entry_type = 'PUBLIC'
+          AND t.status IN ('PENDING', 'FAILED')
+          AND t.attempt_count &lt; #{maxRetries}
+          AND (
+              v.corrected_english IS NULL OR v.corrected_english = ''
+              OR v.chinese_sentence IS NULL OR v.chinese_sentence = ''
+              OR LOWER(TRIM(v.corrected_english)) REGEXP '^(n|v|vt|vi|adj|adv|prep|pron|conj|art|aux|num|int|det|abbr|phr|pref|suf|modal)\\.'
+              OR LOWER(TRIM(v.corrected_english)) = LOWER(TRIM(v.word))
+              OR TRIM(v.corrected_english) NOT LIKE '% %'
+              OR LOWER(v.corrected_english) NOT LIKE CONCAT('%', LOWER(v.word), '%')
+              OR v.corrected_english NOT REGEXP '[A-Za-z]'
+          )
+        ORDER BY
+            CASE WHEN t.status = 'FAILED' THEN 0 ELSE 1 END,
+            t.updated_at ASC,
+            t.entry_id ASC
         LIMIT #{limit}
     </select>
 

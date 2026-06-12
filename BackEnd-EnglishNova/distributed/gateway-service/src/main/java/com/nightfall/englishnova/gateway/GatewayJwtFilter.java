@@ -25,6 +25,11 @@ import java.util.List;
 @Component
 public class GatewayJwtFilter implements GlobalFilter, Ordered {
 
+    private static final String HEADER_USER_ID = "X-Auth-User-Id";
+    private static final String HEADER_USERNAME = "X-Auth-Username";
+    private static final String HEADER_TIMESTAMP = "X-Auth-Timestamp";
+    private static final String HEADER_SIGNATURE = "X-Auth-Signature";
+
     private static final List<String> PUBLIC_PATHS = List.of(
             "/api/auth/login",
             "/auth/login",
@@ -43,9 +48,14 @@ public class GatewayJwtFilter implements GlobalFilter, Ordered {
     );
 
     private final SecretKey secretKey;
+    private final GatewayInternalAuthSigner internalAuthSigner;
 
-    public GatewayJwtFilter(@Value("${english-nova.jwt.secret}") String jwtSecret) {
+    public GatewayJwtFilter(
+            @Value("${english-nova.jwt.secret}") String jwtSecret,
+            GatewayInternalAuthSigner internalAuthSigner
+    ) {
         this.secretKey = Keys.hmacShaKeyFor(JwtTokenUtools.normalizeSecret(jwtSecret));
+        this.internalAuthSigner = internalAuthSigner;
     }
 
     @Override
@@ -76,9 +86,19 @@ public class GatewayJwtFilter implements GlobalFilter, Ordered {
                 return unauthorized(exchange, "无效的登录令牌");
             }
 
+            String timestamp = internalAuthSigner.currentTimestamp();
+            String signature = internalAuthSigner.sign(userId, username, timestamp);
             ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                    .header("X-Auth-User-Id", userId)
-                    .header("X-Auth-Username", username)
+                    .headers(headers -> {
+                        headers.remove(HEADER_USER_ID);
+                        headers.remove(HEADER_USERNAME);
+                        headers.remove(HEADER_TIMESTAMP);
+                        headers.remove(HEADER_SIGNATURE);
+                        headers.set(HEADER_USER_ID, userId);
+                        headers.set(HEADER_USERNAME, username);
+                        headers.set(HEADER_TIMESTAMP, timestamp);
+                        headers.set(HEADER_SIGNATURE, signature);
+                    })
                     .build();
             return chain.filter(exchange.mutate().request(mutatedRequest).build());
         } catch (Exception exception) {
