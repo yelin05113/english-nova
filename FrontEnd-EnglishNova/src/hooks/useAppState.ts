@@ -31,6 +31,7 @@ import {
 } from '../api/modules/wordNotebooks'
 import { AUTH_IDLE_TIMEOUT_MS, DEFAULT_IMPORT_PLATFORM, TOKEN_KEY } from '../constants'
 
+// 统一管理跨页面应用状态，包括登录、词库选择、测验会话、提示消息和缓存数据。
 export type GlobalLayoutMode = 'pixel' | 'default'
 
 interface StoredAuthSession {
@@ -1278,7 +1279,7 @@ export function useAppState() {
       }
       setQuizState(nextState)
     } catch (err) {
-      const message = err instanceof Error ? err.message : '涓嬩竴棰樺姞杞藉け璐?'
+      const message = err instanceof Error ? err.message : '下一题加载失败'
       if (result.remainingQuestions <= 0 || /no longer active|not found|session/i.test(message)) {
         setQuizState({ session: result.session, currentQuestion: null })
       } else {

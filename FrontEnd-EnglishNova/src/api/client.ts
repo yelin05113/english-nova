@@ -14,6 +14,7 @@ interface ApiRequestOptions extends ApiAuthOptions {
   requireAuth?: boolean
 }
 
+// 统一处理 JSON 解析、鉴权请求头和后端错误响应。
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit,

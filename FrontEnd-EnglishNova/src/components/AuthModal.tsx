@@ -60,8 +60,8 @@ export function AuthModal() {
 
     setFieldErrors({})
     clearAuthError()
-    // `clearAuthError` comes from context and is recreated with app state renders.
-    // We only want to reset field state when the modal is opened or auth mode changes.
+    // clearAuthError 来自上下文，会随应用状态渲染重新创建。
+    // 这里只在弹窗打开或登录/注册模式切换时重置字段状态。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authModalOpen, authTab])
 

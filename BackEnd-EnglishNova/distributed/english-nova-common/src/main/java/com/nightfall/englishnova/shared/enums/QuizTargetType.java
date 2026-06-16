@@ -1,7 +1,7 @@
 package com.nightfall.englishnova.shared.enums;
 
 /**
- * Quiz target source.
+ * 测验目标来源。
  */
 public enum QuizTargetType {
     USER_WORDBOOK,

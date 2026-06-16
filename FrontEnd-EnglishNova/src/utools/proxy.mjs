@@ -28,6 +28,7 @@ function signInternalAuth(secret, userId, username, timestamp) {
   return createHmac('sha256', secret).update(payload, 'utf8').digest('base64url')
 }
 
+// 本地 Vite 开发时模拟网关签发的内部鉴权请求头。
 function applyInternalAuthHeaders(proxyOptions, env) {
   const internalAuthSecret =
     env.VITE_INTERNAL_AUTH_SECRET ||
@@ -67,6 +68,7 @@ export function createApiProxy(env) {
   const quizTarget = resolveQuizProxyTarget(env)
   const proxy = {}
 
+  // 大多数服务走网关代理，使本地请求路径和 Docker 环境保持一致。
   for (const path of [
     '/auth/login',
     '/auth/register',
@@ -84,6 +86,7 @@ export function createApiProxy(env) {
     proxy[path] = { target: gatewayTarget, changeOrigin: true }
   }
 
+  // 本地模式下测验相关路由直连 quiz-service，因此需要补齐签名后的用户请求头。
   for (const path of ['/wordbooks', '/word-notebooks', '/quiz/sessions']) {
     proxy[path] = applyInternalAuthHeaders({ target: quizTarget, changeOrigin: true }, env)
   }

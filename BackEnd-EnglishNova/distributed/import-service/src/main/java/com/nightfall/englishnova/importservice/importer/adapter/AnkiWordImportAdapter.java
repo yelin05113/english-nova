@@ -158,7 +158,7 @@ public class AnkiWordImportAdapter implements WordImportAdapter {
                 try {
                     deckNames.put(Long.parseLong(entry.getKey()), name == null ? "Anki 导入" : name.toString());
                 } catch (NumberFormatException ignored) {
-                    // Ignore non-numeric deck ids from malformed packages.
+                    // 跳过异常卡包中的非数字牌组 ID。
                 }
             }
             return deckNames;

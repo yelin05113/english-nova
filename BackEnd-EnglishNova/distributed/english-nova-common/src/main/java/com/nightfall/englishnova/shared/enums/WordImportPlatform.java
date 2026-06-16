@@ -12,6 +12,6 @@ public enum WordImportPlatform {
     SHANBAY,
     /** Anki 卡包。 */
     ANKI,
-    /** ECDICT public wordbook. */
+    /** ECDICT 公共词库。 */
     ECDICT
 }

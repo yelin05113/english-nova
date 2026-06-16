@@ -71,6 +71,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * 测验领域服务，负责词书/单词本入口、测验会话生命周期、答题判定和进度回写。
+ */
 @Service
 public class QuizServiceImpl implements QuizService {
 
@@ -234,6 +237,7 @@ public class QuizServiceImpl implements QuizService {
     @Override
     @Transactional
     public QuizSessionStateDto createSession(CurrentUser user, CreateQuizSessionRequest request) {
+        // 同一目标只保留一个活动会话，避免进度统计出现歧义。
         QuizTargetType targetType = request.targetType() == null ? QuizTargetType.USER_WORDBOOK : request.targetType();
         long targetId = request.targetId() == null ? 0L : request.targetId();
         QuizMode mode = targetType == QuizTargetType.PUBLIC_WORDBOOK
@@ -261,6 +265,7 @@ public class QuizServiceImpl implements QuizService {
     public QuizSessionStateDto getSessionState(CurrentUser user, String sessionId) {
         SessionVo session = requireSession(user.id(), sessionId);
         requireActiveSession(session);
+        // 查询会话状态时允许懒加载下一题，使刷新页面和继续练习复用同一流程。
         QuizQuestionDto currentQuestion = loadOrCreateCurrentQuestion(session);
         if (currentQuestion == null && "ACTIVE".equals(session.getStatus())) {
             sessionMapper.completeSession(sessionId);
@@ -316,6 +321,7 @@ public class QuizServiceImpl implements QuizService {
     @Override
     @Transactional
     public QuizAnswerResultDto answer(CurrentUser user, String sessionId, QuizAnswerRequest request) {
+        // 答题提交需要同时更新题目状态、会话计数和学习进度，因此保持事务边界。
         SessionVo session = requireSession(user.id(), sessionId);
         requireActiveSession(session);
         AttemptVo attempt = requireAttempt(user.id(), sessionId, request.attemptId());

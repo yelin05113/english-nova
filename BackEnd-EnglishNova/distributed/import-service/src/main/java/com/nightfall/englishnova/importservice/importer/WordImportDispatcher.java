@@ -16,9 +16,9 @@ public class WordImportDispatcher {
     private final Map<WordImportPlatform, WordImportAdapter> adapterMap = new EnumMap<>(WordImportPlatform.class);
 
     /**
-     * 构造函数，自动注册所有适配器。
+     * 构造时自动注册所有导入适配器。
      *
-     * @param adapters 所有已注册的导入适配器列表
+     * @param adapters Spring 容器中已注册的导入适配器列表
      */
     public WordImportDispatcher(List<WordImportAdapter> adapters) {
         for (WordImportAdapter adapter : adapters) {
@@ -27,7 +27,7 @@ public class WordImportDispatcher {
     }
 
     /**
-     * 获取所有已注册的导入适配器列表。
+     * 获取所有已注册的导入适配器。
      *
      * @return 适配器列表
      */
@@ -39,7 +39,7 @@ public class WordImportDispatcher {
      * 按平台类型获取对应的导入适配器。
      *
      * @param platform 平台类型
-     * @return 对应的适配器，若不存在则返回 null
+     * @return 对应的适配器；不存在时返回 null
      */
     public WordImportAdapter getAdapter(WordImportPlatform platform) {
         return adapterMap.get(platform);

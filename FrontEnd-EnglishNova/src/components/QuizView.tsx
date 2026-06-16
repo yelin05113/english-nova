@@ -310,7 +310,7 @@ export function QuizView() {
     }))
     if (currentId !== prevQuestionId.current) {
       prevQuestionId.current = currentId
-      // Reset answer UI when the backend advances to a different question.
+      // 后端推进到新题目时，重置当前答题反馈 UI。
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setFeedback(null)
       setPendingAdvance(null)

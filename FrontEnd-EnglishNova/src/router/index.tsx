@@ -10,6 +10,7 @@ import { HomeView } from '../views/HomeView'
 import { ProfileView } from '../views/ProfileView'
 import { ProtectedGuard } from './guards'
 
+// 集中维护路由表，让共享布局和登录保护页面的入口保持一致。
 export function AppRouter() {
   return (
     <Routes>

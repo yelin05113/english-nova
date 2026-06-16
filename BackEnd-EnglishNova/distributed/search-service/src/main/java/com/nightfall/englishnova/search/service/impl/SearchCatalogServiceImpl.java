@@ -87,7 +87,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 /**
- * 鍩轰簬 Elasticsearch 鐨勬悳绱㈢洰褰曟湇鍔°€? * 璐熻矗鍏叡璇嶅簱涓庣鏈夎瘝搴撴悳绱€佽瘝鏉¤鎯呮煡璇紝浠ュ強鍏叡璇嶅簱琛ュ叏瀵煎叆銆? */
+ * 基于 Elasticsearch 的搜索目录服务。
+ * 负责公开词库与私有词库搜索、词条详情查询，以及公开词库补全导入。
+ */
 @Service
 public class SearchCatalogServiceImpl implements SearchCatalogService {
 
@@ -190,7 +192,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     /**
-     * 鏈寚瀹氳瘝涔︽椂鍙悳绱㈠叕鍏辫瘝搴擄紱鎸囧畾璇嶄功鏃跺彧鎼滅储褰撳墠鐢ㄦ埛鎷ユ湁鐨勮璇嶄功銆?     */
+     * 未指定词书时只搜索公共词库；指定词书时只搜索当前用户拥有的该词书。
+     */
     public WordSearchResponseDto searchVocabulary(String keyword, CurrentUser user, Long wordbookId) {
         String normalizedKeyword = SearchTextUtools.normalizeSearchKeyword(keyword);
         if (normalizedKeyword.isBlank()) {
@@ -208,7 +211,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     /**
-     * 褰撳叧閿瓧鐪嬭捣鏉ュ儚鍗曡瘝鏌ヨ鏃讹紝杩斿洖鎼滅储寤鸿銆?     */
+     * 当关键字看起来像单词查询时，返回搜索建议。
+     */
     public List<SearchSuggestionDto> searchSuggestions(String keyword, CurrentUser user, Long wordbookId) {
         String normalizedKeyword = SearchTextUtools.normalizeSearchKeyword(keyword);
         if (normalizedKeyword.isBlank() || !shouldHydrate(normalizedKeyword)) {
@@ -221,7 +225,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     /**
-     * 鍔犺浇鍗曚釜璇嶆潯璇︽儏锛屽苟鍦ㄦ潯浠舵弧瓒虫椂鎳掑姞杞借ˉ鍏ㄩ煶棰戝湴鍧€銆?     */
+     * 加载单个词条详情，并在条件满足时懒加载补全音频地址。
+     */
     public WordDetailDto getWordDetail(long entryId, VocabularyEntryType entryType, CurrentUser user) {
         DetailVo row = loadDetailRow(entryId, entryType);
         if (PRIVATE_VISIBILITY.equalsIgnoreCase(row.getVisibility())
@@ -468,7 +473,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     /**
-     * 灏嗗崟璇嶅鍏ュ叡浜叕鍏辫瘝搴撱€?     */
+     * 将指定单词导入或刷新到公开词库。
+     */
     public PublicCatalogImportResultDto importPublicCatalog(PublicCatalogImportRequest request) {
         boolean refreshExisting = request != null && Boolean.TRUE.equals(request.refreshExisting());
         List<String> normalizedWords = SearchTextUtools.normalizeWords(request == null ? null : request.words(), MAX_IMPORT_WORDS);
@@ -900,7 +906,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     /**
-     * 搴旂敤鍚姩鍚庨噸寤烘暣濂楁悳绱㈢储寮曘€?     */
+     * 应用启动后记录 AI 文本和音频补全 worker 的运行模式，方便排查批处理配置。
+     */
     @EventListener(ApplicationReadyEvent.class)
     public void logEnrichmentWorkerMode() {
         boolean textOnlyMode = exampleEnrichmentProperties.resolvedTextOnlyMode();
@@ -939,7 +946,8 @@ public class SearchCatalogServiceImpl implements SearchCatalogService {
     }
 
     /**
-     * 鍦ㄨ瘝涔﹀鍏ュ畬鎴愬悗锛屽皢鏁版嵁鍚屾鍒?Elasticsearch銆?     */
+     * 词书导入完成后，将用户词书数据同步到 Elasticsearch。
+     */
     @RabbitListener(queues = "${english-nova.search.index-queue}")
     public void handleImportedWordbook(WordbookImportedEvent event) {
         exampleEnrichmentTaskMapper.insertTasksForUserWordbook(event.userId(), event.wordbookId());

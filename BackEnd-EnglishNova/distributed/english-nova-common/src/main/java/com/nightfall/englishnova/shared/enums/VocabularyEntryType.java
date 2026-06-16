@@ -1,7 +1,7 @@
 package com.nightfall.englishnova.shared.enums;
 
 /**
- * Vocabulary entry ownership type.
+ * 词条归属类型。
  */
 public enum VocabularyEntryType {
     PUBLIC,
